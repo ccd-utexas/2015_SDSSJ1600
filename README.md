@@ -6,7 +6,7 @@ See directory ipython_notebooks.
 
 ## Testing
 Use [pytest](http://pytest.org/):
-```bash
+```
 $ git clone https://github.com/stharrold/Harrold_2015_SDSSJ1600.git
 $ cd Harrold_2015_SDSSJ1600
 $ git tag --list
