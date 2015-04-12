@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
+r"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 
 TODO
 ----
@@ -18,8 +18,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_periodogram(periods, powers, xscale='log', n_terms=1,
-                     period_unit='seconds', flux_unit='relative', return_ax=False):
+def plot_periodogram(
+        periods, powers, xscale='log', n_terms=1, period_unit='seconds',
+        flux_unit='relative', return_ax=False):
     r"""Plot the periods and powers for a generalized Lomb-Scargle
     periodogram. Convenience function for plot formats from [1]_.
 
@@ -28,10 +29,12 @@ def plot_periodogram(periods, powers, xscale='log', n_terms=1,
     periods : numpy.ndarray
         1D array of periods. Unit is time, e.g. seconds or days.
     powers  : numpy.ndarray
-        1D array of powers. Unit is Lomb-Scargle power spectral density from flux and angular frequency,
-        e.g. from relative flux, angular frequency 2*pi/seconds.
+        1D array of powers. Unit is Lomb-Scargle power spectral density
+        from flux and angular frequency, e.g. from relative flux,
+        angular frequency 2*pi/seconds.
     xscale : {'log', 'linear'}, string, optional
-        `matplotlib.pyplot` attribute to plot periods x-scale in 'log' (default) or 'linear' scale.
+        `matplotlib.pyplot` attribute to plot periods x-scale in
+        'log' (default) or 'linear' scale.
     n_terms : {1}, int, optional
         Number of Fourier terms used to fit the light curve for labeling the plot.
         Example: n_terms=1 will label the title with
@@ -39,7 +42,8 @@ def plot_periodogram(periods, powers, xscale='log', n_terms=1,
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label the x-axis with "Period (seconds)"
+        Example: period_unit='seconds', flux_unit='relative' will label
+        the x-axis with "Period (seconds)"
         and label the y-axis with "Lomb-Scargle Power Spectral Density\n" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     return_ax : {False, True}, bool
@@ -53,7 +57,7 @@ def plot_periodogram(periods, powers, xscale='log', n_terms=1,
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     fig = plt.figure()
@@ -75,9 +79,10 @@ def plot_periodogram(periods, powers, xscale='log', n_terms=1,
     return return_obj
 
 
-def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None, num_periods=None,
-                     sigs=(95.0, 99.0), num_bootstraps=100, show_periodogram=True,
-                     period_unit='seconds', flux_unit='relative'):
+def calc_periodogram(
+        times, fluxes, fluxes_err, min_period=None, max_period=None, num_periods=None,
+        sigs=(95.0, 99.0), num_bootstraps=100, show_periodogram=True,
+        period_unit='seconds', flux_unit='relative'):
     r"""Calculate periods, powers, and significance levels using generalized
     Lomb-Scargle periodogram. Convenience function for methods from [1]_.
        
@@ -227,8 +232,9 @@ def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None
     return (periods, powers, sigs_powers)
 
 
-def select_sig_periods_powers(peak_periods, peak_powers, cutoff_power):
-    """Select the periods with peak powers above the cutoff power.
+def select_sig_periods_powers(
+        peak_periods, peak_powers, cutoff_power):
+    r"""Select the periods with peak powers above the cutoff power.
            
     Parameters
     ----------
@@ -269,40 +275,48 @@ def select_sig_periods_powers(peak_periods, peak_powers, cutoff_power):
     return (sig_periods, sig_powers)
 
 
-def calc_best_period(times, fluxes, fluxes_err, candidate_periods,
-                     n_terms=6, show_periodograms=False, show_summary_plots=True,
-                     period_unit='seconds', flux_unit='relative'):
-    """Calculate the period that best represents the data from a multi-term generalized Lomb-Scargle
-    periodogram. Convenience function for methods from [1]_.
+def calc_best_period(
+        times, fluxes, fluxes_err, candidate_periods, n_terms=6,
+        show_periodograms=False, show_summary_plots=True,
+        period_unit='seconds', flux_unit='relative'):
+    r"""Calculate the period that best represents the data from a multi-term
+    generalized Lomb-Scargle periodogram. Convenience function for methods
+    from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time, e.g. seconds or days.
+        1D array of time coordinates for data. Unit is time,
+        e.g. seconds or days.
     fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux, e.g. relative flux or magnitudes.
+        1D array of fluxes. Unit is integrated flux,
+        e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
     candidate_periods : numpy.ndarray
         1D array of candidate periods. Unit is same as `times`.
     n_terms : {6}, int, optional
-        Number of Fourier terms to fit the light curve. To fit eclipses well often requires ~6 terms,
-        from section 10.3.3 of [1]_.
+        Number of Fourier terms to fit the light curve. To fit eclipses well
+        often requires ~6 terms, from section 10.3.3 of [1]_.
     show_periodograms : {False, True}, bool, optional
-        If `False` (default), do not display periodograms (power vs period) for each candidate period.
+        If `False` (default), do not display periodograms (power vs period)
+        for each candidate period.
     show_summary_plots : {True, False}, bool, optional
-        If `True` (default), display summary plots of delta BIC vs period and periodogram for best fit period.
+        If `True` (default), display summary plots of delta BIC vs period and
+        periodogram for best fit period.
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label the x-axis with "Period (seconds)"
-        and label the y-axis with "Lomb-Scargle Power Spectral Density\n" +
+        Example: period_unit='seconds', flux_unit='relative' will label the
+        x-axis with "Period (seconds)" and label the y-axis with
+        "Lomb-Scargle Power Spectral Density\n" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     
     Returns
     -------
     best_period : float
-        Period with the highest relative Bayesian Information Criterion. Unit is same as `times`.
+        Period with the highest relative Bayesian Information Criterion.
+        Unit is same as `times`.
 
     See Also
     --------
@@ -310,8 +324,8 @@ def calc_best_period(times, fluxes, fluxes_err, candidate_periods,
 
     Notes
     -----
-    - Ranges around each candidate period are based on the angular frequency resolution
-        of the original data. Adopted from [2]_.
+    - Ranges around each candidate period are based on the angular frequency
+      resolution of the original data. Adopted from [2]_.
         acquisition_time = max(times) - min(times)
         omega_resolution = 2.0 * np.pi / acquisition_time
         num_omegas = 1000 # chosen to balance fast computation with medium range
@@ -319,13 +333,13 @@ def calc_best_period(times, fluxes, fluxes_err, candidate_periods,
         sampling_precision = 0.1 # ensure sampling precision is higher than data precision
         range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
     - Calculating best period from 100 candidate periods takes ~61 seconds for a single 2.7 GHz core.
-        Computation time is approximately linear with number of candidate periods.
+      Computation time is approximately linear with number of candidate periods.
     - Call after `astroML.time_series.search_frequencies`.
     - Call before `calc_num_terms`.
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
     .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/fft_funda/
     
     """
@@ -414,36 +428,41 @@ def calc_best_period(times, fluxes, fluxes_err, candidate_periods,
     return best_period
 
 
-def calc_num_terms(times, fluxes, fluxes_err, best_period, max_n_terms=20, show_periodograms=False,
-                   show_summary_plots=True, period_unit='seconds', flux_unit='relative'):
-    """Calculate the number of Fourier terms that best represent the data's underlying
-    variability for representation by a multi-term generalized Lomb-Scargle periodogram.
-    Convenience function for methods from [1]_.
+def calc_num_terms(
+        times, fluxes, fluxes_err, best_period, max_n_terms=20,
+        show_periodograms=False, show_summary_plots=True, period_unit='seconds',
+        flux_unit='relative'):
+    r"""Calculate the number of Fourier terms that best represent the data's underlying
+    variability for representation by a multi-term generalized Lomb-Scargle
+    periodogram. Convenience function for methods from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
         1D array of time coordinates for data. Unit is time, e.g. seconds or days.
     fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux, e.g. relative flux or magnitudes.
+        1D array of fluxes. Unit is integrated flux,
+        e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
     best_period : float
         Period that best represents the data. Unit is same as `times`.
     max_n_terms : {20}, int, optional
         Maximum number of terms to attempt fitting.
-        Example: From 10.3.3 of [1]_, many light curves of eclipses are well represented
-        with ~6 terms and are best fit with ~10 terms.
+        Example: From 10.3.3 of [1]_, many light curves of eclipses are well
+        represented with ~6 terms and are best fit with ~10 terms.
     show_periodograms : {False, True}, bool, optional
-        If `False` (default), do not display periodograms (power vs period) for each candidate number of terms.
+        If `False` (default), do not display periodograms (power vs period)
+        for each candidate number of terms.
     show_summary_plots : {True, False}, bool, optional
-        If `True` (default), display summary plots of delta BIC vs number of terms, periodogram and
-        phased light curve for best fit number of terms.
+        If `True` (default), display summary plots of delta BIC vs number of terms,
+        periodogram and phased light curve for best fit number of terms.
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plots.
-        Example: period_unit='seconds', flux_unit='relative' will label the x-axis with "Period (seconds)"
-        and label the y-axis with "Lomb-Scargle Power Spectral Density\n" +
+        Example: period_unit='seconds', flux_unit='relative' will label the x-axis
+        with "Period (seconds)" and label the y-axis with
+        "Lomb-Scargle Power Spectral Density\n" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     
     Returns
@@ -453,11 +472,14 @@ def calc_num_terms(times, fluxes, fluxes_err, best_period, max_n_terms=20, show_
         is determined by the maximum relative Bayesian Information Criterion, from
         section 10.3.3 of [1]_.
     phases : ndarray
-        The phase coordinates of the best-fit light curve. Unit is decimal orbital phase.
+        The phase coordinates of the best-fit light curve.
+        Unit is decimal orbital phase.
     fits_phased : ndarray
-        The relative fluxes for the `phases` of the best-fit light curve. Unit is same as `fluxes`.
+        The relative fluxes for the `phases` of the best-fit light curve.
+        Unit is same as `fluxes`.
     times_phased : ndarray
-        The phases of the corresponding input `times`. Unit is decimal orbital phase.
+        The phases of the corresponding input `times`.
+        Unit is decimal orbital phase.
 
     See Also
     --------
@@ -478,7 +500,7 @@ def calc_num_terms(times, fluxes, fluxes_err, best_period, max_n_terms=20, show_
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     # Calculate the multiterm periodograms and choose the best number of terms from the maximum relative BIC.
@@ -543,33 +565,37 @@ def calc_num_terms(times, fluxes, fluxes_err, best_period, max_n_terms=20, show_
     return (best_n_terms, phases, fits_phased, times_phased)
 
 
-def plot_phased_light_curve(phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
-                            flux_unit='relative', return_ax=False):
-    """Plot a phased light curve. Convenience function for
-    plot formats from [1]_.
+def plot_phased_light_curve(
+        phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
+        flux_unit='relative', return_ax=False):
+    r"""Plot a phased light curve. Convenience function for plot formats from [1]_.
 
     Parameters
     ----------
     phases : ndarray
-        The phase coordinates of the best-fit light curve. Unit is decimal orbital phase.
+        The phase coordinates of the best-fit light curve.
+        Unit is decimal orbital phase.
     fits_phased : ndarray
-        The relative fluxes for corresponding `phases` of the best-fit light curve.
-        Unit is integrated flux, e.g. relative flux or magnitudes.
+        The relative fluxes for corresponding `phases` of the best-fit
+        light curve. Unit is integrated flux, e.g. relative flux or magnitudes.
     times_phased : ndarray
-        The phases of the time coordinates for the observed data. Unit is decimal orbital phase.
+        The phases of the time coordinates for the observed data.
+        Unit is decimal orbital phase.
     fluxes : numpy.ndarray
-        1D array of fluxes corresponding to `times_phased`. Unit is integrated flux,
-        e.g. relative flux or magnitudes.
+        1D array of fluxes corresponding to `times_phased`.
+        Unit is integrated flux, e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
     n_terms : {1}, int, optional
         Number of Fourier terms used to fit the light curve.
     flux_unit : {'relative'}, string, optional
         String describing flux units for labeling the plot.
-        Example: flux_unit='relative' will label the y-axis with "Flux (relative)".
+        Example: flux_unit='relative' will label the y-axis
+        with "Flux (relative)".
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
-        If `True`, return a `matplotlib.axes` instance for additional modification.
+        If `True`, return a `matplotlib.axes` instance
+        for additional modification.
 
     Returns
     -------
@@ -582,11 +608,12 @@ def plot_phased_light_curve(phases, fits_phased, times_phased, fluxes, fluxes_er
     
     Notes
     -----
-    - The phased light curve is plotted through two complete cycles to illustrate the primary minimum.
+    - The phased light curve is plotted through two complete cycles
+      to illustrate the primary minimum.
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     fig = plt.figure()
@@ -606,34 +633,37 @@ def plot_phased_light_curve(phases, fits_phased, times_phased, fluxes, fluxes_er
     return return_obj
 
 
-def refine_best_period(times, fluxes, fluxes_err, best_period, n_terms=6,
-                       show_plots=True, period_unit='seconds', flux_unit='relative'):
-    """Refine the best period to a higher precision from a multi-term generalized Lomb-Scargle
-    periodogram. Convenience function for methods from [1]_.
+def refine_best_period(
+        times, fluxes, fluxes_err, best_period, n_terms=6, show_plots=True,
+        period_unit='seconds', flux_unit='relative'):
+    r"""Refine the best period to a higher precision from a multi-term generalized
+    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
         1D array of time coordinates for data. Unit is time, e.g. seconds or days.
     fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux, e.g. relative flux or magnitudes.
+        1D array of fluxes. Unit is integrated flux,
+        e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
     best_period : float
         Period that best represents the data. Unit is same as `times`.
     n_terms : {6}, int, optional
-        Number of Fourier terms to fit the light curve. To fit eclipses well often requires ~6 terms,
-        from section 10.3.3 of [1]_.
+        Number of Fourier terms to fit the light curve. To fit eclipses well
+        often requires ~6 terms, from section 10.3.3 of [1]_.
     show_plots : {True, False}, bool, optional
         If `True`, display plots of periodograms and phased light curves.
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label a periodogram
-        x-axis with "Period (seconds)" and label a periodogram y-axis with 
-        "Lomb-Scargle Power Spectral Density\n(from flux in relative, ang. freq. in 2*pi/seconds)".
+        Example: period_unit='seconds', flux_unit='relative' will label a
+        periodogram x-axis with "Period (seconds)" and label a periodogram
+        y-axis with
+        "Lomb-Scargle Power Spectral Density\n
+        (from flux in relative, ang. freq. in 2*pi/seconds)".
 
-    
     Returns
     -------
     refined_period : float
@@ -641,13 +671,17 @@ def refine_best_period(times, fluxes, fluxes_err, best_period, n_terms=6,
     refined_period_resolution : float
         Precision of refined period. Unit is same as `times`.
     phases : ndarray
-        The phase coordinates of the best-fit light curve. Unit is decimal orbital phase.
+        The phase coordinates of the best-fit light curve.
+        Unit is decimal orbital phase.
     fits_phased : ndarray
-        The relative fluxes for the `phases` of the best-fit light curve. Unit is same as `fluxes`.
+        The relative fluxes for the `phases` of the best-fit light curve.
+        Unit is same as `fluxes`.
     times_phased : ndarray
-        The phases of the corresponding input `times`. Unit is decimal orbital phase.
+        The phases of the corresponding input `times`.
+        Unit is decimal orbital phase.
     mtf : astroML.time_series.MultiTermFit
-        Instance of the `astroML.time_series.MultiTermFit` class for the best fit model.
+        Instance of the `astroML.time_series.MultiTermFit` class
+        for the best fit model.
 
     See Also
     --------
@@ -655,8 +689,8 @@ def refine_best_period(times, fluxes, fluxes_err, best_period, n_terms=6,
 
     Notes
     -----
-    -  Range around the best period is based on the angular frequency resolution
-        of the original data. Adopted from [2]_.
+    -  Range around the best period is based on the angular frequency
+        resolution of the original data. Adopted from [2]_.
         acquisition_time = max(times) - min(times)
         omega_resolution = 2.0 * np.pi / acquisition_time
         num_omegas = 2000 # chosen to balance fast computation with small range
@@ -674,7 +708,7 @@ def refine_best_period(times, fluxes, fluxes_err, best_period, n_terms=6,
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
     .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/fft_funda/
     
     """
@@ -718,23 +752,27 @@ def refine_best_period(times, fluxes, fluxes_err, best_period, n_terms=6,
     return (refined_period, refined_period_resolution, phases, fits_phased, times_phased, mtf)
 
 
-def calc_flux_fits_residuals(phases, fits_phased, times_phased, fluxes):
-    """Calculate the fluxes and their residuals at phased times from a fit
+def calc_flux_fits_residuals(
+        phases, fits_phased, times_phased, fluxes):
+    r"""Calculate the fluxes and their residuals at phased times from a fit
     to a light curve.
     
     Parameters
     ----------
     phases : numpy.ndarray
-        The phase coordinates of the best-fit light curve. Unit is decimal orbital phase.
+        The phase coordinates of the best-fit light curve.
+        Unit is decimal orbital phase.
         Required: numpy.shape(phases) == numpy.shape(fits_phased)
     fits_phased : numpy.ndarray
-        The relative fluxes for the `phases` of the best-fit light curve. Unit is relative flux.
+        The relative fluxes for the `phases` of the best-fit light curve.
+        Unit is relative flux.
         Required: numpy.shape(phases) == numpy.shape(fits_phased)
     times_phased : numpy.ndarray
         The phases coordinates of the `fluxes`. Unit is decimal orbital phase.
         Required: numpy.shape(times_phased) == numpy.shape(fluxes)
     fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux, e.g. relative flux or magnitudes.
+        1D array of fluxes. Unit is integrated flux,
+        e.g. relative flux or magnitudes.
         Required: numpy.shape(times_phased) == numpy.shape(fluxes)
 
     Returns
@@ -743,7 +781,8 @@ def calc_flux_fits_residuals(phases, fits_phased, times_phased, fluxes):
         1D array of `fits_phased` resampled at `times_phased`.
         numpy.shape(fluxes_fit) == numpy.shape(fluxes)
     residuals : numpy.ndarray
-        1D array of the differences between `fluxes` and `fits_phased` resampled at `times_phased`:
+        1D array of the differences between `fluxes` and `fits_phased` resampled
+        at `times_phased`:
         residuals = fluxes - fits_phased_resampled
         numpy.shape(residuals) == numpy.shape(fluxes)
 
@@ -752,3 +791,47 @@ def calc_flux_fits_residuals(phases, fits_phased, times_phased, fluxes):
     residuals = np.subtract(fluxes, fit_fluxes)
     return (fit_fluxes, residuals)
 
+
+def calc_z1_z2(
+        dist):
+    """Calculate a rank-based measure of Gaussianity in the core
+    and tail of a distribution.
+    
+    Parameters
+    ----------
+    dist : array_like
+        Distribution to evaluate. 1D array of `float`.
+    
+    Returns
+    -------
+    z1 : float
+        Departure of distribution core from that of a Gaussian
+        in number of sigma.
+    z2 : float
+        Departure of distribution tails from that of a Gaussian
+        in number of sigma.
+        
+    Notes
+    -----
+    - From section 4.7.4 of [1]_:
+        z1 = 1.3 * (abs(mu - median) / sigma) * sqrt(num_dist)
+        z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * sqrt(num_dist)
+        where mu = mean(residuals), median = median(residuals),
+        sigma = standard_deviation(residuals), num_dist = len(dist)
+        sigmaG = sigmaG(dist) = rank_based_standard_deviation(dist) (from [1]_)
+    - Interpretation:
+        For z1 = 1.0, the probability of a true Gaussian distribution also with
+        z1 > 1.0 is ~32% and is equivalent to a two-tailed p-value |z| > 1.0.
+        The same is true for z2.
+    
+    References
+    ----------
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    
+    """
+    (mu, sigma) = astroML_stats.mean_sigma(dist)
+    (median, sigmaG) = astroML_stats.median_sigmaG(dist)
+    num_dist = len(dist)
+    z1 = 1.3 * (abs(mu - median) / sigma) * np.sqrt(num_dist)
+    z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * np.sqrt(num_dist)
+    return (z1, z2)

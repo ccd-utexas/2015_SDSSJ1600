@@ -68,3 +68,19 @@ def test_select_sig_periods_powers(
     assert np.all(np.isclose(ref_sig_powers, test_sig_powers))
     return None
 
+
+def test_calc_best_period(
+    times=[1,2,3,4,5,6,7,8], fluxes=[0,1,0,1,0,1,0,1], fluxes_err=[1,1,1,1,1,1,1,1],
+    candidate_periods=[2.15384615, 2.], n_terms=1, show_periodograms=False,
+    show_summary_plots=False, period_unit='seconds', flux_unit='relative',
+    ref_best_period=2.0):
+    """pytest style test for code.utils.calc_best_period
+
+    """
+    test_best_period = \
+        code.utils.calc_best_period(
+            times=times, fluxes=fluxes, fluxes_err=fluxes_err, candidate_periods=candidate_periods,
+            n_terms=n_terms, show_periodograms=show_periodograms, show_summary_plots=show_summary_plots,
+            period_unit=period_unit, flux_unit=flux_unit)
+    assert np.isclose(test_best_period, ref_best_period)
+    return None
