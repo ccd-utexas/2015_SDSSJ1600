@@ -1,15 +1,18 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 
+TODO
+----
 TODO: remove resolutions. resolution is f1 - f0 or p1 - p0.
 
 """
 
 
-# Standard libraries.
+# Import standard packages.
 from __future__ import absolute_import, division, print_function
-import sys
 import warnings
-# Third-party installed packages.
+# Import third-party installed packages.
 import astroML.time_series as astroML_ts
 import matplotlib.pyplot as plt
 import numpy as np
