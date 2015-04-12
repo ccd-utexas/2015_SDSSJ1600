@@ -12,7 +12,7 @@ TODO: remove resolutions. resolution is f1 - f0 or p1 - p0.
 # Import standard packages.
 from __future__ import absolute_import, division, print_function
 import warnings
-# Import third-party installed packages.
+# Import installed packages.
 import astroML.time_series as astroML_ts
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +20,7 @@ import numpy as np
 
 def plot_periodogram(periods, powers, xscale='log', n_terms=1,
                      period_unit='seconds', flux_unit='relative', return_ax=False):
-    """Plot the periods and powers for a generalized Lomb-Scargle
+    r"""Plot the periods and powers for a generalized Lomb-Scargle
     periodogram. Convenience function for plot formats from [1]_.
 
     Parameters
@@ -51,10 +51,6 @@ def plot_periodogram(periods, powers, xscale='log', n_terms=1,
     ax : matplotlib.axes
         Returned only if `return_ax` is `True`. Otherwise returns `None`.
 
-    TODO
-    ----
-    TODO: Create test from astroml book.
-
     References
     ----------
     .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
@@ -82,15 +78,17 @@ def plot_periodogram(periods, powers, xscale='log', n_terms=1,
 def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None, num_periods=None,
                      sigs=(95.0, 99.0), num_bootstraps=100, show_periodogram=True,
                      period_unit='seconds', flux_unit='relative'):
-    """Calculate periods, powers, and significance levels using generalized Lomb-Scargle periodogram.
-    Convenience function for methods from [1]_.
+    r"""Calculate periods, powers, and significance levels using generalized
+    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time, e.g. seconds or days.
+        1D array of time coordinates for data. Unit is time,
+        e.g. seconds or days.
     fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux, e.g. relative flux or magnitudes.
+        1D array of fluxes. Unit is integrated flux,
+        e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
     min_period : {None}, float, optional
@@ -112,13 +110,14 @@ def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None
     num_bootstraps : {100}, int, optional
         Number of bootstrap resamplings to compute significance levels.
     show_periodogram : {True, False}, bool, optional
-        If `True` (default), display periodogram plot of Lomb-Scargle power spectral density vs period
-        with significance levels.
+        If `True` (default), display periodogram plot of Lomb-Scargle
+        power spectral density vs period with significance levels.
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label the x-axis with "Period (seconds)"
-        and label the y-axis with "Lomb-Scargle Power Spectral Density\n" +
+        Example: period_unit='seconds', flux_unit='relative' will label
+        the x-axis with "Period (seconds)" and label the y-axis with
+        "Lomb-Scargle Power Spectral Density\n" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     
     Returns
@@ -126,10 +125,12 @@ def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None
     periods : numpy.ndarray
         1D array of periods. Unit is same as `times`.
     powers  : numpy.ndarray
-        1D array of powers. Unit is Lomb-Scargle power spectral density from flux and angular frequency,
-        e.g. from relative flux, angular frequency 2*pi/seconds.
+        1D array of powers. Unit is Lomb-Scargle power spectral density
+        from flux and angular frequency, e.g. from relative flux,
+        angular frequency 2*pi/seconds.
     sigs_powers : list of tuple of floats
-        Powers corresponding to levels of statistical significance from bootstrap analysis.
+        Powers corresponding to levels of statistical significance
+        from bootstrap analysis.
         Example: [(95.0, 0.05), (99.0, 0.06)]
 
     See Also
@@ -146,9 +147,12 @@ def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None
         num_periods = int(min(
             (max(times) - min(times)) / np.median(np.diff(times))),
             1e4)
-    - Period sampling is linear in angular frequency space with more samples for shorter periods.
-    - Computing periodogram of 1e4 periods with 100 bootstraps takes ~85 seconds for a single 2.7 GHz core.
-        Computation time is approximately linear with number of periods and number of bootstraps.
+    - Period sampling is linear in angular frequency space
+        with more samples for shorter periods.
+    - Computing periodogram of 1e4 periods with 100 bootstraps
+        takes ~85 seconds for a single 2.7 GHz core.
+        Computation time is approximately linear with number
+        of periods and number of bootstraps.
     - Call before `astroML.time_series.search_frequencies`.
 
     TODO
@@ -157,7 +161,7 @@ def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None
     
     References
     ----------
-    .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy'
     .. [2] http://zone.ni.com/reference/en-XX/help/372416B-01/svtconcepts/fft_funda/
     
     """
