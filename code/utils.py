@@ -835,3 +835,198 @@ def calc_z1_z2(
     z1 = 1.3 * (abs(mu - median) / sigma) * np.sqrt(num_dist)
     z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * np.sqrt(num_dist)
     return (z1, z2)
+
+
+def plot_phased_histogram(
+    hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes, fluxes_err,
+    flux_unit='relative', return_ax=False):
+    """Plot a Bayesian blocks histogram for a phased light curve.
+    Convenience function for methods from [1]_.
+
+    Parameters
+    ----------
+    hist_phases : numpy.ndarray
+        1D array of the phased times of the right edge of each histogram bin.
+        Unit is decimal orbital phase.
+    hist_fluxes : numpy.ndarray
+        1D array of the median fluxes corresponding to the histogram bins
+        with right edges of `hist_phases`. Unit is integrated flux,
+        e.g. relative flux or magnitudes.
+    hist_fluxes_err : np.ndarray
+        1D array of the rank-based standard deviation of the binned fluxes
+        (sigmaG from section 4.7.4 of [1]_). Unit is same as `hist_fluxes`.
+    times_phased : ndarray
+        The phases of the time coordinates for the observed data.
+        Unit is same as `hist_phases`.
+    fluxes : numpy.ndarray
+        1D array of fluxes corresponding to `times_phased`.
+        Unit is same as `hist_fluxes`.
+    fluxes_err : numpy.ndarray
+        1D array of errors for fluxes. Unit is same as `hist_fluxes_err`.
+    flux_unit : {'relative'}, string, optional
+        String describing flux units for labeling the plot.
+        Example: flux_unit='relative' will label the y-axis
+        with "Flux (relative)".
+    return_ax : {False, True}, bool
+        If `False` (default), show the periodogram plot. Return `None`.
+        If `True`, return a `matplotlib.axes` instance for
+        additional modification.
+
+    Returns
+    -------
+    ax : matplotlib.axes
+        Returned only if `return_ax` is `True`. Otherwise returns `None`.
+    
+    See Also
+    --------
+    plot_phased_light_curve, calc_phased_histogram
+    
+    Notes
+    -----
+    - The phased light curve is plotted through two complete cycles to
+    illustrate the primary minimum.
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.errorbar(x=np.append(times_phased, np.add(times_phased, 1.0)), y=np.append(fluxes, fluxes),
+                yerr=np.append(fluxes_err, fluxes_err), fmt='.k', ecolor='gray')
+    plt_hist_phases = np.append(hist_phases, np.add(hist_phases, 1.0))
+    plt_hist_fluxes = np.append(hist_fluxes, hist_fluxes)
+    plt_hist_fluxes_upr = np.add(plt_hist_fluxes,
+                                 np.append(hist_fluxes_err, hist_fluxes_err))
+    plt_hist_fluxes_lwr = np.subtract(plt_hist_fluxes,
+                                      np.append(hist_fluxes_err, hist_fluxes_err))
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes, color='blue', linewidth=2)
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_upr, color='blue', linewidth=3, linestyle=':')
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_lwr, color='blue', linewidth=3, linestyle=':')
+    ax.set_title("Phased light curve\n" +
+                 "with Bayesian block histogram")
+    ax.set_xlabel("Orbital phase (decimal)")
+    ax.set_ylabel("Flux ({unit})".format(unit=flux_unit))
+    if return_ax:
+        return_obj = ax
+    else:
+        plt.show()
+        return_obj = None
+    return return_obj
+
+
+def calc_phased_histogram(
+    times_phased, fluxes, fluxes_err, flux_unit='relative', show_plot=True):
+    """Calcluate a Bayesian blocks histogram for a phased light curve.
+    Assumes that phased lightcurve is symmetrical about phase=0.5.
+    Convenience function for methods from [1]_.
+
+    Parameters
+    ----------
+    times_phased : numpy.ndarray
+        1D array of the phases of the time coordinates for the observed data.
+        Unit is decimal orbital phase.
+    fluxes : numpy.ndarray
+        1D array of fluxes corresponding to `times_phased`.
+        Unit is integrated flux, e.g. relative flux or magnitudes.
+    fluxes_err : numpy.ndarray
+        1D array of errors for fluxes. Unit is same as `fluxes`.
+        Errors are used only for determining bin widths, not for determining flux
+    flux_unit : {'relative'}, string, optional
+        String describing flux units for labeling the plot.
+        Example: flux_unit='relative' will label the y-axis
+        with "Flux (relative)".
+    show_plot : {True, False}, bool, optional
+        If `True`, display plot of phased light curve with histogram.
+
+    Returns
+    -------
+    hist_phases : numpy.ndarray
+        1D array of the phased times of the right edge of each Bayesian block bin.
+        Unit is same as `times_phased`.
+    hist_fluxes : numpy.ndarray
+        1D array of the median fluxes corresponding to the Bayesian block bins
+        with right edges of `hist_phases`. Unit is same as `fluxes`.
+    hist_fluxes_err : np.ndarray
+        1D array of the rank-based standard deviation of the binned fluxes
+        (sigmaG from section 4.7.4 of [1]_). Unit is same as `fluxes`.
+    
+    See Also
+    --------
+    plot_phased_histogram
+    
+    Notes
+    -----
+    - The phased light curve is assumed to be symmetrical about phase=0.5
+      since the phased lightcurve is folded at phase=0.5. This allows fitting
+      unevenly sampled data.
+    - Phased times for each bin are defined by the right edge since
+      `matplotlib.pyplot.step` constructs plots expecting coordinates for the
+      right edges of bins.
+    - Because Bayesian blocks have variable bin width, the histogram is computed
+      from three complete cycles to prevent the edges of the data domain from
+      affecting the computed bin widths.
+    - Binned fluxes are combined using the median rather than a weighted average.
+      Errors in binned flux are the rank-based standard deviation of the binned
+      fluxes (sigmaG from section 4.7.4 of [1]_).
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    
+    """
+    # Fold the phased light curve at phase=0.5 to enforce symmetry to
+    # accommodate irregular data sampling.
+    tfmask_lt05 = times_phased < 0.5
+    tfmask_gt05 = np.logical_not(tfmask_lt05)
+    phases_folded = np.append(times_phased[tfmask_lt05], np.subtract(1.0, times_phased[tfmask_gt05]))
+    phases_mirrored = np.append(phases_folded, np.subtract(1.0, phases_folded))
+    fluxes_folded = np.append(fluxes[tfmask_lt05], fluxes[tfmask_gt05])
+    fluxes_mirrored = np.append(fluxes_folded, fluxes_folded)
+    fluxes_err_folded = np.append(fluxes_err[tfmask_lt05], fluxes_err[tfmask_gt05])
+    fluxes_err_mirrored = np.append(fluxes_err_folded, fluxes_err_folded)
+    # Append the data to itself (tesselate) 2 times for total of 3 cycles to compute
+    # histogram without edge effects.
+    tess_phases = phases_mirrored
+    tess_fluxes = fluxes_mirrored
+    tess_fluxes_err = fluxes_err_mirrored
+    for begin_phase in xrange(0, 2):
+        tess_phases = np.append(tess_phases, np.add(phases_mirrored, begin_phase + 1.0))
+        tess_fluxes = np.append(tess_fluxes, fluxes_mirrored)
+        tess_fluxes_err = np.append(tess_fluxes_err, fluxes_err_mirrored)
+    # Compute edges of Bayesian blocks histogram.
+    # Note: number of edges = number of bins + 1
+    tess_bin_edges = \
+        astroML_dens.bayesian_blocks(t=tess_phases, x=tess_fluxes,
+                                     sigma=tess_fluxes_err, fitness='measures')
+    # Determine the median flux and sigmaG within each Bayesian block bin.
+    tess_bin_fluxes = []
+    tess_bin_fluxes_err = []
+    for idx_start in xrange(len(tess_bin_edges) - 1):
+        bin_phase_start = tess_bin_edges[idx_start]
+        bin_phase_end = tess_bin_edges[idx_start + 1]
+        tfmask_bin = np.logical_and(bin_phase_start <= tess_phases,
+                                    tess_phases <= bin_phase_end)
+        if tfmask_bin.any():
+            (bin_flux, bin_flux_err) = astroML_stats.median_sigmaG(tess_fluxes[tfmask_bin])
+        else:
+            (bin_flux, bin_flux_err) = (np.nan, np.nan)
+        tess_bin_fluxes.append(bin_flux)
+        tess_bin_fluxes_err.append(bin_flux_err)
+    tess_bin_fluxes = np.asarray(tess_bin_fluxes)
+    tess_bin_fluxes_err = np.asarray(tess_bin_fluxes_err)
+    # Fix number of edges = number of bins. Values are for are right edge of each bin.
+    tess_bin_edges = tess_bin_edges[1:]
+    # Crop 1 complete cycle out of center of of 3-cycle histogram.
+    # Plot and return histogram.
+    tfmask_hist = np.logical_and(1.0 <= tess_bin_edges, tess_bin_edges <= 2.0)
+    hist_phases = np.subtract(tess_bin_edges[tfmask_hist], 1.0)
+    hist_fluxes = tess_bin_fluxes[tfmask_hist]
+    hist_fluxes_err = tess_bin_fluxes_err[tfmask_hist]
+    if show_plot:
+        plot_phased_histogram(
+            hist_phases=hist_phases, hist_fluxes=hist_fluxes, hist_fluxes_err=hist_fluxes_err,
+            times_phased=phases_mirrored, fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
+            flux_unit=flux_unit, return_ax=False)
+    return (hist_phases, hist_fluxes, hist_fluxes_err)
