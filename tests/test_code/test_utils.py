@@ -54,3 +54,17 @@ def test_calc_periodogram(
     assert np.all(np.isclose(ref_sigs_powers, test_sigs_powers))
     return None
 
+
+def test_select_sig_periods_powers(
+    peak_periods=[1, 2, 3], peak_powers=[0.1, 0.2, 0.3], cutoff_power=0.15,
+    ref_sig_periods=[2, 3], ref_sig_powers=[0.2, 0.3]):
+    """pytest style test for code.select_sig_periods_powers
+
+    """
+    (test_sig_periods, test_sig_powers) = \
+        code.utils.select_sig_periods_powers(
+            peak_periods=peak_periods, peak_powers=peak_powers, cutoff_power=cutoff_power)
+    assert np.all(np.isclose(ref_sig_periods, test_sig_periods))
+    assert np.all(np.isclose(ref_sig_powers, test_sig_powers))
+    return None
+

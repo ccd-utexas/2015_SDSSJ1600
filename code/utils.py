@@ -155,10 +155,6 @@ def calc_periodogram(times, fluxes, fluxes_err, min_period=None, max_period=None
         of periods and number of bootstraps.
     - Call before `astroML.time_series.search_frequencies`.
 
-    TODO
-    ----
-    TODO: Create test from astroml book.
-    
     References
     ----------
     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy'
@@ -239,8 +235,9 @@ def select_sig_periods_powers(peak_periods, peak_powers, cutoff_power):
     peak_periods : numpy.ndarray
         1D array of periods. Unit is time, e.g. seconds or days.
     peak_powers  : numpy.ndarray
-        1D array of powers. Unit is Lomb-Scargle power spectral density from flux and angular frequency,
-        e.g. from relative flux, angular frequency 2*pi/seconds.
+        1D array of powers. Unit is Lomb-Scargle power spectral density from flux
+        and angular frequency, e.g. from relative flux,
+        angular frequency 2*pi/seconds.
     cutoff_power : float
         Power corresponding to a level of statistical significance. Only periods
         above this cutoff power level are returned.
@@ -260,12 +257,12 @@ def select_sig_periods_powers(peak_periods, peak_powers, cutoff_power):
     -----
     - Call after `astroML.time_series.search_frequencies`.
     - Call before `calc_best_period`.
-
-    TODO
-    ----
-    TODO: Create test from numpy example.
-    
+   
     """
+    # Check input.
+    peak_periods = np.asarray(peak_periods)
+    peak_powers = np.asarray(peak_powers)
+    # Select significant periods and powers.
     sig_idxs = np.where(peak_powers > cutoff_power)
     sig_periods = peak_periods[sig_idxs]
     sig_powers = peak_powers[sig_idxs]
@@ -326,10 +323,6 @@ def calc_best_period(times, fluxes, fluxes_err, candidate_periods,
     - Call after `astroML.time_series.search_frequencies`.
     - Call before `calc_num_terms`.
 
-    TODO
-    ----
-    TODO: Create test.
-    
     References
     ----------
     .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
@@ -483,10 +476,6 @@ def calc_num_terms(times, fluxes, fluxes_err, best_period, max_n_terms=20, show_
     - Call after `calc_best_period`.
     - Call before `refine_best_period`.
 
-    TODO
-    ----
-    TODO: Create test
-    
     References
     ----------
     .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
@@ -595,10 +584,6 @@ def plot_phased_light_curve(phases, fits_phased, times_phased, fluxes, fluxes_er
     -----
     - The phased light curve is plotted through two complete cycles to illustrate the primary minimum.
 
-    TODO
-    ----
-    TODO: Create test from astroml book.
-
     References
     ----------
     .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
@@ -687,10 +672,6 @@ def refine_best_period(times, fluxes, fluxes_err, best_period, n_terms=6,
         period_resolution = 2.0 * np.pi / (max_omega - min_omega)
     - Call after `calc_num_terms`.
 
-    TODO
-    ----
-    TODO: Create test.
-    
     References
     ----------
     .. [1] Ivezic et al, 2014, Statistics, Data Mining, and Machine Learning in Astronomy
@@ -766,10 +747,6 @@ def calc_flux_fits_residuals(phases, fits_phased, times_phased, fluxes):
         residuals = fluxes - fits_phased_resampled
         numpy.shape(residuals) == numpy.shape(fluxes)
 
-    TODO
-    ----
-    TODO: create test
-    
     """
     fit_fluxes = np.interp(x=times_phased, xp=phases, fp=fits_phased)
     residuals = np.subtract(fluxes, fit_fluxes)
