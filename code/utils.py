@@ -13,6 +13,7 @@ TODO: remove resolutions. resolution is f1 - f0 or p1 - p0.
 from __future__ import absolute_import, division, print_function
 import warnings
 # Import installed packages.
+import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
 import matplotlib.pyplot as plt
 import numpy as np
@@ -794,7 +795,7 @@ def calc_flux_fits_residuals(
 
 def calc_z1_z2(
         dist):
-    """Calculate a rank-based measure of Gaussianity in the core
+    r"""Calculate a rank-based measure of Gaussianity in the core
     and tail of a distribution.
     
     Parameters
@@ -840,7 +841,7 @@ def calc_z1_z2(
 def plot_phased_histogram(
     hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes, fluxes_err,
     flux_unit='relative', return_ax=False):
-    """Plot a Bayesian blocks histogram for a phased light curve.
+    r"""Plot a Bayesian blocks histogram for a phased light curve.
     Convenience function for methods from [1]_.
 
     Parameters
@@ -918,7 +919,7 @@ def plot_phased_histogram(
 
 def calc_phased_histogram(
     times_phased, fluxes, fluxes_err, flux_unit='relative', show_plot=True):
-    """Calcluate a Bayesian blocks histogram for a phased light curve.
+    r"""Calcluate a Bayesian blocks histogram for a phased light curve.
     Assumes that phased lightcurve is symmetrical about phase=0.5.
     Convenience function for methods from [1]_.
 

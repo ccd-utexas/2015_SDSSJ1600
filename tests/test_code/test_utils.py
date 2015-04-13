@@ -84,3 +84,26 @@ def test_calc_best_period(
             period_unit=period_unit, flux_unit=flux_unit)
     assert np.isclose(test_best_period, ref_best_period)
     return None
+
+
+def test_calc_num_terms():
+    pass
+
+def test_plot_phased_light_curve():
+    pass
+
+def test_refine_best_period():
+    pass
+
+def test_calc_flux_fits_residuals():
+    pass
+
+def test_calc_z1_z2():
+    pass
+
+def test_plot_phased_histogram():
+    pass
+
+def test_calc_phased_histogram():
+    pass
+
