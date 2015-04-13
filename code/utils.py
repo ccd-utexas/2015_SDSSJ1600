@@ -430,9 +430,8 @@ def calc_best_period(
 
 
 def calc_num_terms(
-        times, fluxes, fluxes_err, best_period, max_n_terms=20,
-        show_periodograms=False, show_summary_plots=True, period_unit='seconds',
-        flux_unit='relative'):
+    times, fluxes, fluxes_err, best_period, max_n_terms=20, show_periodograms=False,
+    show_summary_plots=True, period_unit='seconds', flux_unit='relative'):
     r"""Calculate the number of Fourier terms that best represent the data's underlying
     variability for representation by a multi-term generalized Lomb-Scargle
     periodogram. Convenience function for methods from [1]_.

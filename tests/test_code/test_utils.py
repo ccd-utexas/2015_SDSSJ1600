@@ -86,24 +86,56 @@ def test_calc_best_period(
     return None
 
 
-def test_calc_num_terms():
-    pass
+def test_calc_num_terms(
+    times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7, best_period=2.0, max_n_terms=2,
+    show_periodograms=False, show_summary_plots=False, period_unit='seconds', flux_unit='relative',
+    ref_best_n_terms=1, ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
+    ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
+    """pytest style test for code.utils.calc_num_terms
 
-def test_plot_phased_light_curve():
-    pass
+    """
+    (test_best_n_terms, test_phases, test_fits_phased, test_times_phased) = \
+        code.utils.calc_num_terms(
+            times=times, fluxes=fluxes, fluxes_err=fluxes_err, best_period=best_period,
+            max_n_terms=max_n_terms, show_periodograms=show_periodograms,
+            show_summary_plots=show_summary_plots, period_unit=period_unit, flux_unit=flux_unit)
+    assert ref_best_n_terms == test_best_n_terms
+    assert np.all(np.isclose(ref_phases, test_phases))
+    if ref_fits_phased is None:
+        pass
+    else:
+        assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
+    assert np.all(np.isclose(ref_times_phased, test_times_phased))
+    return None
 
-def test_refine_best_period():
-    pass
 
-def test_calc_flux_fits_residuals():
-    pass
+def test_plot_phased_light_curve(
+    phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
+    fits_phased=[1]*1000, times_phased=[0.004, 0.504]*2**6, fluxes=[0,1]*2**6,
+    fluxes_err=[1]*2**7, n_terms=1, flux_unit='relative', return_ax=True):
+    """pytest style test for code.utils.plot_phased_light_curve
 
-def test_calc_z1_z2():
-    pass
+    """
+    ax = \
+        code.utils.plot_phased_light_curve(
+            phases=phases, fits_phased=fits_phased, times_phased=times_phased, fluxes=fluxes,
+            fluxes_err=fluxes_err, n_terms=n_terms, flux_unit=flux_unit, return_ax=return_ax)
+    assert isinstance(ax, plt.Axes)
+    return None
 
-def test_plot_phased_histogram():
-    pass
 
-def test_calc_phased_histogram():
-    pass
+# def test_refine_best_period():
+#     pass
+
+# def test_calc_flux_fits_residuals():
+#     pass
+
+# def test_calc_z1_z2():
+#     pass
+
+# def test_plot_phased_histogram():
+#     pass
+
+# def test_calc_phased_histogram():
+#     pass
 
