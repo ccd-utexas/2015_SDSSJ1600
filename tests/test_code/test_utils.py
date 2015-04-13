@@ -14,6 +14,7 @@ from __future__ import absolute_import, division, print_function
 import sys
 sys.path.insert(0, '.')
 # Import installed packages.
+import astroML.time_series as astroML_ts
 import matplotlib.pyplot as plt
 import numpy as np
 # Import local packages.
@@ -102,7 +103,7 @@ def test_calc_num_terms(
     assert ref_best_n_terms == test_best_n_terms
     assert np.all(np.isclose(ref_phases, test_phases))
     if ref_fits_phased is None:
-        pass
+        assert len(ref_phases) == len(test_fits_phased)
     else:
         assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
     assert np.all(np.isclose(ref_times_phased, test_times_phased))
@@ -124,8 +125,29 @@ def test_plot_phased_light_curve(
     return None
 
 
-# def test_refine_best_period():
-#     pass
+def test_refine_best_period(
+    times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7, best_period=2.0,
+    n_terms=1, show_plots=False, period_unit='seconds', flux_unit='relative',
+    ref_best_period=2.0, ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
+    ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
+    """pytest style test for code.utils.refine_best_period
+
+    """
+    (test_best_period, test_phases, test_fits_phased, test_times_phased, test_multi_term_fit) = \
+        code.utils.refine_best_period(
+            times=range(2**7), fluxes=[0,1]*2**6,
+            fluxes_err=[1]*2**7, best_period=2.0, n_terms=1,
+            show_plots=False, period_unit='seconds', flux_unit='relative')
+    assert ref_best_period == test_best_period
+    assert np.all(np.isclose(ref_phases, test_phases))
+    if ref_fits_phased is None:
+        assert len(ref_phases) == len(test_fits_phased)
+    else:
+        assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
+    assert np.all(np.isclose(ref_times_phased, test_times_phased))
+    assert isinstance(test_multi_term_fit, astroML_ts.MultiTermFit)
+    return None
+
 
 # def test_calc_flux_fits_residuals():
 #     pass

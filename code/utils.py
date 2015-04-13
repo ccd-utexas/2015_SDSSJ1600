@@ -2,10 +2,6 @@
 # -*- coding: utf-8 -*-
 r"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 
-TODO
-----
-TODO: remove resolutions. resolution is f1 - f0 or p1 - p0.
-
 """
 
 
@@ -668,8 +664,6 @@ def refine_best_period(
     -------
     refined_period : float
         Refined period. Unit is same as `times`.
-    refined_period_resolution : float
-        Precision of refined period. Unit is same as `times`.
     phases : ndarray
         The phase coordinates of the best-fit light curve.
         Unit is decimal orbital phase.
@@ -697,13 +691,6 @@ def refine_best_period(
         anti_aliasing = 1.0 / 2.56 # remove digital aliasing
         sampling_precision = 0.01 # ensure sampling precision very high relative to data precision
         range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
-    - Resolution of refined period (period precision) is based on time resolution of original data.
-        max_period = 0.5 * acquisition_time
-        min_omega = 2.0 * np.pi / max_period
-        median_sampling_period = np.median(np.diff(times))
-        min_period = 2.0 * median_sampling_period
-        max_omega = 2.0 * np.pi / (min_period)
-        period_resolution = 2.0 * np.pi / (max_omega - min_omega)
     - Call after `calc_num_terms`.
 
     References
@@ -724,7 +711,6 @@ def refine_best_period(
     median_sampling_period = np.median(np.diff(times))
     min_period = 2.0 * median_sampling_period
     max_omega = 2.0 * np.pi / (min_period)
-    refined_period_resolution = 2.0 * np.pi / (max_omega - min_omega)
     best_omega = 2.0 * np.pi / best_period
     range_omegas = \
         np.clip(
@@ -748,8 +734,7 @@ def refine_best_period(
                                 fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
                                 flux_unit=flux_unit, return_ax=False)
         print("Refined period: {per} seconds".format(per=refined_period))
-        print("Refined period resolution: {per_res} seconds".format(per_res=refined_period_resolution))
-    return (refined_period, refined_period_resolution, phases, fits_phased, times_phased, mtf)
+    return (refined_period, phases, fits_phased, times_phased, mtf)
 
 
 def calc_flux_fits_residuals(
