@@ -149,11 +149,33 @@ def test_refine_best_period(
     return None
 
 
-# def test_calc_flux_fits_residuals():
-#     pass
+def test_calc_flux_fits_residuals(
+    phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
+    fits_phased=[1]*1000, times_phased=[0.004, 0.504]*2**6, fluxes=[0,1]*2**6,
+    ref_fit_fluxes=[1]*2**7, ref_residuals=[-1,0]*2**6):
+    """pytest style test for code.utils.calc_flux_fits_residuals
 
-# def test_calc_z1_z2():
-#     pass
+    """
+    (test_fit_fluxes, test_residuals) = \
+        code.utils.calc_flux_fits_residuals(
+            phases=phases, fits_phased=fits_phased, times_phased=times_phased, fluxes=fluxes)
+    assert np.all(np.isclose(ref_fit_fluxes, test_fit_fluxes))
+    assert np.all(np.isclose(ref_residuals, test_residuals))
+    return None
+
+
+np.random.seed(0)
+def test_calc_z1_z2(
+    dist=np.random.normal(loc=0, scale=1, size=1000),
+    ref_z1=0.53192162282074262, ref_z2=0.6959521800983498):
+    """pytest style test for code.utils.calc_z1_z2
+
+    """
+    (test_z1, test_z2) = code.utils.calc_z1_z2(dist=dist)
+    assert np.isclose(ref_z1, test_z1)
+    assert np.isclose(ref_z2, test_z2)
+    return None
+
 
 # def test_plot_phased_histogram():
 #     pass
