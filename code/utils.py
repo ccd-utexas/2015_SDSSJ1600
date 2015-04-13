@@ -9,6 +9,7 @@ r"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 from __future__ import absolute_import, division, print_function
 import warnings
 # Import installed packages.
+import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
 import matplotlib.pyplot as plt
@@ -961,6 +962,10 @@ def calc_phased_histogram(
     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
+    # Check input.
+    times_phased = np.asarray(times_phased)
+    fluxes = np.asarray(fluxes)
+    fluxes_err = np.asarray(fluxes_err)
     # Fold the phased light curve at phase=0.5 to enforce symmetry to
     # accommodate irregular data sampling.
     tfmask_lt05 = times_phased < 0.5
@@ -973,6 +978,8 @@ def calc_phased_histogram(
     fluxes_err_mirrored = np.append(fluxes_err_folded, fluxes_err_folded)
     # Append the data to itself (tesselate) 2 times for total of 3 cycles to compute
     # histogram without edge effects.
+    # Note: astroML.density_estimation.bayesian_blocks requires input times (phases)
+    # be unique.
     tess_phases = phases_mirrored
     tess_fluxes = fluxes_mirrored
     tess_fluxes_err = fluxes_err_mirrored
@@ -980,6 +987,9 @@ def calc_phased_histogram(
         tess_phases = np.append(tess_phases, np.add(phases_mirrored, begin_phase + 1.0))
         tess_fluxes = np.append(tess_fluxes, fluxes_mirrored)
         tess_fluxes_err = np.append(tess_fluxes_err, fluxes_err_mirrored)
+    (tess_phases, uniq_idxs) = np.unique(ar=tess_phases, return_index=True)
+    tess_fluxes = tess_fluxes[uniq_idxs]
+    tess_fluxes_err = tess_fluxes_err[uniq_idxs]
     # Compute edges of Bayesian blocks histogram.
     # Note: number of edges = number of bins + 1
     tess_bin_edges = \
