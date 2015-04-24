@@ -1166,3 +1166,60 @@ def calc_loglum_from_radius_teff(radius, teff):
     loglum = np.log10((4.0*np.pi*(radius**2.0)*sci_con.Stefan_Boltzmann*(teff**4.0)) / \
                       ast_con.L_sun.value)
     return loglum
+
+
+def read_params_gianninas(fobj):
+    """Read and parse custom file format of physical stellar parameters from
+    Gianninas et al 2014, [1]_.
+    
+    Parameters
+    ----------
+    fobj : file object
+        An opened file object to the text file with parameters.
+        Example file format:
+        line 0: 'Name         SpT    Teff   errT  log g errg '...
+        line 1: '==========  ===== ======= ====== ===== ====='...
+        line 2: 'J1600+2721  DA6.0   8353.   126. 5.244 0.118'...
+    
+    Returns
+    -------
+    dobj : collections.OrderedDict
+        Ordered dictionary with parameter field names as keys and
+        parameter field quantities as values.
+        
+    Examples
+    --------
+    >>> with open('path/to/file.txt', 'rb') as fobj:
+    ...     dobj = read_params_gianninas(fobj)
+    
+    References
+    ----------
+    .. [1] http://adsabs.harvard.edu/abs/2014ApJ...794...35G
+    
+    """
+    # Read in lines of file and use second line (line number 1, 0-indexed) to parse fields.
+    # Convert string values to floats. Split specific values that have mixed types (e.g. '1.000 Gyr').
+    lines = []
+    for line in fobj:
+        lines.append(line.strip())
+    if len(lines) != 3:
+        warnings.warn(("File has {num_lines}. File is expected to only have 3 lines.\n" +
+                       "Example file format:\n" +
+                       "line 0: 'Name         SpT    Teff   errT  log g errg '...\n" +
+                       "line 1: '==========  ===== ======= ====== ===== ====='...\n" +
+                       "line 2: 'J1600+2721  DA6.0   8353.   126. 5.244 0.118'...").format(num_lines=len(lines)))
+    dobj = collections.OrderedDict()
+    for mobj in re.finditer('=+', lines[1]):
+        key = lines[0][slice(*mobj.span())].strip()
+        value = lines[2][slice(*mobj.span())].strip()
+        try:
+            value = float(value)
+        except ValueError:
+            try:
+                value = float(value.rstrip('Gyr'))
+            except ValueError:
+                pass
+        if key == 'og L/L':
+            key = 'log L/Lo'
+        dobj[key] = value
+    return dobj

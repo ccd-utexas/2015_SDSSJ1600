@@ -270,6 +270,20 @@ def test_calc_loglum_from_radius_teff(
     
     """
     assert np.isclose(
-        calc_loglum_from_radius_teff(radius=radius, teff=teff),
+        code.utils.calc_loglum_from_radius_teff(radius=radius, teff=teff),
         loglum, atol=1e-4)
+    return None
+
+
+def test_read_params_gianninas(
+    fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
+                           "==========  ===== ======= ====== =========\n" +
+                           "J1600+2721  DA6.0   8353. -1.002 1.107 Gyr"),
+    dobj=collections.OrderedDict(
+        [('Name', 'J1600+2721'), ('SpT', 'DA6.0'), ('Teff', 8353.0),
+         ('log L/Lo', -1.002), ('t_cool', 1.107)])):
+    """Test that parameters from Gianninas are read correctly.
+    
+    """
+    assert dobj == calc.utils.read_params_gianninas(fobj=fobj)
     return None
