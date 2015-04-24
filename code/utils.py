@@ -1135,3 +1135,34 @@ def calc_logg_from_mass_radius(mass, radius):
     """
     logg = np.log10((sci_con.G*mass/(radius**2.0)) * sci_con.hecto)
     return logg
+
+
+def calc_loglum_from_radius_teff(radius, teff):
+    """Calculate the log luminosity of a star from its radius and effective temperature.
+    
+    Parameters
+    ----------
+    radius : float
+        Stellar radius. Unit is meters.
+    teff : float
+        Stellar effective temperature. Unit is Kelvin.
+    
+    Returns
+    -------
+    loglum : float
+        Log10 luminosity of the star. Unit is dex Lsun.
+    
+    Notes
+    -----
+    L = 4*pi*R^2*sig*Teff^4,
+    where sig is the Stefan-Boltzmann constant.
+    From Eqn 3.17 of [1]_.
+    
+    References
+    ----------
+    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
+    
+    """
+    loglum = np.log10((4.0*np.pi*(radius**2.0)*sci_con.Stefan_Boltzmann*(teff**4.0)) / \
+                      ast_con.L_sun.value)
+    return loglum

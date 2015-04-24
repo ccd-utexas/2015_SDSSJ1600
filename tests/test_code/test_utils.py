@@ -260,3 +260,16 @@ def test_calc_logg_from_mass_radius(
     return None
 
 
+def test_calc_loglum_from_radius_teff(
+    radius=6.95508e8, teff=5777.0, loglum=np.log10(3.839e26/ast_con.L_sun.value)):
+    """Test that calculations are correct using example 3.4.2. of [1]_
+
+    References
+    ----------
+    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
+    
+    """
+    assert np.isclose(
+        calc_loglum_from_radius_teff(radius=radius, teff=teff),
+        loglum, atol=1e-4)
+    return None
