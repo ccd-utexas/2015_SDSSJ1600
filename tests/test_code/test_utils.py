@@ -14,7 +14,7 @@ from __future__ import absolute_import, division, print_function
 import collections
 import StringIO
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '.') # Test the code in this repository.
 # Import installed packages.
 import astroML.time_series as astroML_ts
 import astropy.constants as ast_con
@@ -215,70 +215,6 @@ def test_calc_phased_histogram(
     return None
 
 
-def test_calc_mass_function_from_period_velr(
-    period=8.6*sci_con.year, velr1=33.0*sci_con.kilo, mfunc=2.324294844333284e+31):
-    """Test that calculations are correct using examples 7.3.1, 7.3.2 of [1]_
-
-    References
-    ----------
-    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
-    
-    """
-    assert np.isclose(
-        code.utils.calc_mass_function_from_period_velr(
-            period=period, velr1=velr1),
-        mfunc)
-    return None
-
-
-def test_calc_velr2_from_masses_period_incl_velr1(
-    mass1=3.0427831666779509e+31/2.0, mass2=3.0427831666779509e+31/2.0,
-    velr1=33000.0, period=271209600.0, incl=1.5708021113113511,
-    velr2=3100.0):
-    """Test that calculations are correct using examples 7.3.1, 7.3.2 of [1]_
-
-    References
-    ----------
-    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
-    
-    """
-    assert np.isclose(
-        code.utils.calc_velr2_from_masses_period_incl_velr1(
-            mass1=mass1, mass2=mass2, velr1=velr1, period=period, incl=incl),
-        velr2)
-    return None
-
-
-def test_calc_logg_from_mass_radius(
-    mass=5.9736e24, radius=6.378136e6, logg=np.log10(9.80*sci_con.hecto)):
-    """Test that calculations are correct using page 36 of [1]_
-
-    References
-    ----------
-    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
-    
-    """
-    assert np.isclose(
-        code.utils.calc_logg_from_mass_radius(mass=mass, radius=radius),
-        logg)
-    return None
-
-
-def test_calc_loglum_from_radius_teff(
-    radius=6.95508e8, teff=5777.0, loglum=np.log10(3.839e26/ast_con.L_sun.value)):
-    """Test that calculations are correct using example 3.4.2. of [1]_
-
-    References
-    ----------
-    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
-    
-    """
-    assert np.isclose(
-        code.utils.calc_loglum_from_radius_teff(radius=radius, teff=teff),
-        loglum, atol=1e-4)
-    return None
-
-
 def test_read_params_gianninas(
     fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
                            "==========  ===== ======= ====== =========\n" +
@@ -303,5 +239,6 @@ def test_has_nans(
     return None
 
 
+# Test special cases for test_has_nans
 test_has_nans(obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf', 2.0)]}},
               found_nan=False)
