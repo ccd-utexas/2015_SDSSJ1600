@@ -11,12 +11,16 @@ Tests are executed using pytest.
 
 # Import standard packages.
 from __future__ import absolute_import, division, print_function
+import collections
+import StringIO
 import sys
 sys.path.insert(0, '.')
 # Import installed packages.
 import astroML.time_series as astroML_ts
+import astropy.constants as ast_con
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.constants as sci_con
 # Import local packages.
 import code
 
@@ -285,7 +289,7 @@ def test_read_params_gianninas(
     """Test that parameters from Gianninas are read correctly.
     
     """
-    assert dobj == calc.utils.read_params_gianninas(fobj=fobj)
+    assert dobj == code.utils.read_params_gianninas(fobj=fobj)
     return None
 
 
@@ -295,7 +299,7 @@ def test_has_nans(
     """Test that nans are found correctly.
     
     """
-    assert calc.utils.has_nans(obj) == found_nan
+    assert code.utils.has_nans(obj) == found_nan
     return None
 
 

@@ -7,13 +7,17 @@ r"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 
 # Import standard packages.
 from __future__ import absolute_import, division, print_function
+import collections
+import re
 import warnings
 # Import installed packages.
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
+import astropy.constants as ast_con
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.constants as sci_con
 
 
 def plot_periodogram(
