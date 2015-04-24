@@ -7,13 +7,17 @@ r"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 
 # Import standard packages.
 from __future__ import absolute_import, division, print_function
+import collections
+import re
 import warnings
 # Import installed packages.
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
+import astropy.constants as ast_con
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.constants as sci_con
 
 
 def plot_periodogram(
@@ -1025,3 +1029,238 @@ def calc_phased_histogram(
             times_phased=phases_mirrored, fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
             flux_unit=flux_unit, return_ax=False)
     return (hist_phases, hist_fluxes, hist_fluxes_err)
+
+
+def calc_mass_function_from_period_velr(period, velr1):
+    """Calculate the mass function of a binary system from the binary period and
+    the observed radial velocity, e.g. for a single-line spectroscopic binary.
+    
+    Parameters
+    ----------
+    period : float
+        Period of eclipse. Unit is seconds.
+    velr1 : float
+        Semi-amplitude of radial velocity of star 1, the brighter star that is observed.
+        Unit is m/s.
+    
+    Returns
+    -------
+    mfunc : float
+        Mass function for the binary system. Without knowing the mass of star 1 or the inclination,
+        the mass function sets a lower limit for the mass of star 2. Unit is kg.
+    
+    Notes
+    -----
+    mass function =
+        (m2 * sin(i))**3 / (m1 + m2)**2 = (P * v1r**3) / (2*pi*G)
+    From equation 7.7 of [1]_.
+    
+    References
+    ----------
+    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
+    
+    """
+    mfunc = (period * velr1**3.0) / (2.0*np.pi*sci_con.G)
+    return mfunc
+
+
+def calc_velr2_from_masses_period_incl_velr1(mass1, mass2, velr1, period, incl):
+    """Calculate the semi-amplitude of the radial velocity of star2 from given masses,
+    period, orbital inclination, and semi-amplitude of the radial velocity of star1.
+    
+    Convenience function for handling modeled data from Gianninas et al 2014.
+    Assumes orbital excentricity << 1.
+    
+    Parameters
+    ----------
+    mass1 : float
+        Mass of star 1. Unit is kg.
+    mass2 : float
+        Mass of star 2. Unit is kg.
+    velr1 : float
+        Semi-amplitude of radial velocity of star 1. Unit is m/s.
+    period : float
+        Period of eclipse. Unit is seconds.
+    incl : float
+        Orbital inclination. Angle between line of sight and the axis of the orbit. Unit is radians.
+
+    Returns
+    -------
+    velr2 : float
+        Semi-amplitude of radial velocity of star 1. Unit is m/s.
+    
+    Notes
+    -----
+    a = (P/(2*pi)) * (v1 + v2), where a is semi-major axis of low-eccentricity orbit,
+        P is orbital period, v is orbital velocity.
+    P**2 = ((4*pi**2) / (G*(m1 + m2))) * a**3, where G is gravitational constant,
+    m is stellar mass. Kepler's Third Law.
+    v = vr / sin(i), where vr is observed radial orbital velocity, i is orbital inclination.
+    => m1 + m2 = P/(2*pi*G) * ((v1r + v2r) / sin(i))**3  
+       v2r = ((m1 + m2)((2*pi*G)/P)(sin(i)**3))**(1/3) - v1r
+    From equation 7.6 in section 7.3 of [1]_.
+    Function adapted from [2]_.
+    
+    References
+    ----------
+    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
+    .. [2] https://pypi.python.org/pypi/binstarsolver/0.1.2
+    
+    """
+    velr2 = ((mass1 + mass2) * ((2.0*np.pi*sci_con.G) / period) * (np.sin(incl))**3.0)**(1.0/3.0) - velr1
+    return velr2
+
+
+def calc_logg_from_mass_radius(mass, radius):
+    """Calculate the surface gravity of a star from its mass.
+    
+    Parameters
+    ----------
+    mass : float
+        Stellar mass. Unit is kg.
+    radius : float
+        Stellar radius. Unit is meters.
+
+    
+    Returns
+    -------
+    logg : float
+        Log10 of surface gravity of the star. Unit is dex cm/s^2 (dex Gal).
+    
+    Notes
+    -----
+    g = G*M/R**2
+    From Eqn 2.12 of [1]_.
+    
+    References
+    ----------
+    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
+    
+    """
+    logg = np.log10((sci_con.G*mass/(radius**2.0)) * sci_con.hecto)
+    return logg
+
+
+def calc_loglum_from_radius_teff(radius, teff):
+    """Calculate the log luminosity of a star from its radius and effective temperature.
+    
+    Parameters
+    ----------
+    radius : float
+        Stellar radius. Unit is meters.
+    teff : float
+        Stellar effective temperature. Unit is Kelvin.
+    
+    Returns
+    -------
+    loglum : float
+        Log10 luminosity of the star. Unit is dex Lsun.
+    
+    Notes
+    -----
+    L = 4*pi*R^2*sig*Teff^4,
+    where sig is the Stefan-Boltzmann constant.
+    From Eqn 3.17 of [1]_.
+    
+    References
+    ----------
+    .. [1] Carroll and Ostlie, 2007, An Introduction to Modern Astrophysics
+    
+    """
+    loglum = np.log10((4.0*np.pi*(radius**2.0)*sci_con.Stefan_Boltzmann*(teff**4.0)) / \
+                      ast_con.L_sun.value)
+    return loglum
+
+
+def read_params_gianninas(fobj):
+    """Read and parse custom file format of physical stellar parameters from
+    Gianninas et al 2014, [1]_.
+    
+    Parameters
+    ----------
+    fobj : file object
+        An opened file object to the text file with parameters.
+        Example file format:
+        line 0: 'Name         SpT    Teff   errT  log g errg '...
+        line 1: '==========  ===== ======= ====== ===== ====='...
+        line 2: 'J1600+2721  DA6.0   8353.   126. 5.244 0.118'...
+    
+    Returns
+    -------
+    dobj : collections.OrderedDict
+        Ordered dictionary with parameter field names as keys and
+        parameter field quantities as values.
+        
+    Examples
+    --------
+    >>> with open('path/to/file.txt', 'rb') as fobj:
+    ...     dobj = read_params_gianninas(fobj)
+    
+    References
+    ----------
+    .. [1] http://adsabs.harvard.edu/abs/2014ApJ...794...35G
+    
+    """
+    # Read in lines of file and use second line (line number 1, 0-indexed) to parse fields.
+    # Convert string values to floats. Split specific values that have mixed types (e.g. '1.000 Gyr').
+    lines = []
+    for line in fobj:
+        lines.append(line.strip())
+    if len(lines) != 3:
+        warnings.warn(("File has {num_lines}. File is expected to only have 3 lines.\n" +
+                       "Example file format:\n" +
+                       "line 0: 'Name         SpT    Teff   errT  log g errg '...\n" +
+                       "line 1: '==========  ===== ======= ====== ===== ====='...\n" +
+                       "line 2: 'J1600+2721  DA6.0   8353.   126. 5.244 0.118'...").format(num_lines=len(lines)))
+    dobj = collections.OrderedDict()
+    for mobj in re.finditer('=+', lines[1]):
+        key = lines[0][slice(*mobj.span())].strip()
+        value = lines[2][slice(*mobj.span())].strip()
+        try:
+            value = float(value)
+        except ValueError:
+            try:
+                value = float(value.rstrip('Gyr'))
+            except ValueError:
+                pass
+        if key == 'og L/L':
+            key = 'log L/Lo'
+        dobj[key] = value
+    return dobj
+
+
+def has_nans(obj):
+    """Recursively iterate through an object to find a `numpy.nan` value.
+    
+    Parameters
+    ----------
+    obj : object
+        Object may be a singleton. If the object has the '__iter__' attribute,
+        nested objects such as `dict`, `list`, `tuple` are iterated through.
+    
+    Returns
+    -------
+    found_nan : bool
+        If `True`, a `numpy.nan` value was found within `obj`.
+        If `False`, no `numpy.nan` values were found within `obj`.
+    
+    """
+    found_nan = False
+    if hasattr(obj, '__iter__'):
+        if isinstance(obj, dict):
+            for value in obj.itervalues():
+                found_nan = has_nans(value)
+                if found_nan:
+                    break
+        else:
+            for item in obj:
+                found_nan = has_nans(item)
+                if found_nan:
+                    break
+    else:
+        try:
+            if np.isnan(obj):
+                found_nan = True
+        except TypeError:
+            pass
+    return found_nan
