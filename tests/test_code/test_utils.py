@@ -287,3 +287,17 @@ def test_read_params_gianninas(
     """
     assert dobj == calc.utils.read_params_gianninas(fobj=fobj)
     return None
+
+
+def test_has_nans(
+    obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, np.nan, 'asdf']}},
+    found_nan=True):
+    """Test that nans are found correctly.
+    
+    """
+    assert calc.utils.has_nans(obj) == found_nan
+    return None
+
+
+test_has_nans(obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf', 2.0)]}},
+              found_nan=False)

@@ -1223,3 +1223,40 @@ def read_params_gianninas(fobj):
             key = 'log L/Lo'
         dobj[key] = value
     return dobj
+
+
+def has_nans(obj):
+    """Recursively iterate through an object to find a `numpy.nan` value.
+    
+    Parameters
+    ----------
+    obj : object
+        Object may be a singleton. If the object has the '__iter__' attribute,
+        nested objects such as `dict`, `list`, `tuple` are iterated through.
+    
+    Returns
+    -------
+    found_nan : bool
+        If `True`, a `numpy.nan` value was found within `obj`.
+        If `False`, no `numpy.nan` values were found within `obj`.
+    
+    """
+    found_nan = False
+    if hasattr(obj, '__iter__'):
+        if isinstance(obj, dict):
+            for value in obj.itervalues():
+                found_nan = has_nans(value)
+                if found_nan:
+                    break
+        else:
+            for item in obj:
+                found_nan = has_nans(item)
+                if found_nan:
+                    break
+    else:
+        try:
+            if np.isnan(obj):
+                found_nan = True
+        except TypeError:
+            pass
+    return found_nan
