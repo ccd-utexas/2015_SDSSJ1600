@@ -14,10 +14,8 @@ import warnings
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
-import astropy.constants as ast_con
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.constants as sci_con
 
 
 def plot_periodogram(

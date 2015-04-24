@@ -17,10 +17,8 @@ import sys
 sys.path.insert(0, '.') # Test the code in this repository.
 # Import installed packages.
 import astroML.time_series as astroML_ts
-import astropy.constants as ast_con
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.constants as sci_con
 # Import local packages.
 import code
 
