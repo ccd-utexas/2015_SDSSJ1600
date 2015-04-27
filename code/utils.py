@@ -1123,7 +1123,76 @@ def has_nans(obj):
     return found_nan
 
 
-# TDOO: insert emcee functions here with model_geometry_from_light_curve.
+# TDOO: insert emcee functions here.
+
+
+def model_geometry_from_light_curve(params, show_plots=False):
+    """Calculate geometric parameters of a spherical binary
+    model from light curve parameters.
+    
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        params = (p1, p2, b0, b2, b4, sig)
+    show_plots : {False, True}, bool, optional
+        If False (default): Don't show plots of optimized fit for inclination.
+        If True: Show plots of optimized fit for inclination.
+    
+    Returns
+    -------
+    geoms : tuple
+        Tuple of floats representing the geometric parameters
+        of a spherical binary model from light curve values.
+        geoms = \
+            (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
+             incl_rad, radius_sep_s, radius_sep_g)
+        Units are:
+        {flux_intg_rel_s, flux_intg_rel_g} = relative integrated flux
+        {radii_ratio_lt} = radius_s / radius_g from light levels
+        {incl_rad} = inclination in radians
+        {radius_sep_s, radius_sep_g} = radius in star-star separation distance
+        
+    Notes
+    -----
+    - See `model_flux_rel` for description of parameters.
+
+    See Also
+    --------
+    model_flux_rel
+
+    """
+    # TODO: Check input.
+    (pp1, pp2, pb0, pb2, pb4, psig) = params # prefixed with p to distinguish
+    light_ref = pb2 # Between minima.
+    light_oc = pb0 # During occultation minima.
+    light_tr = pb4 # During transit minima.
+    p0 = 0.0 # Mid-eclipse.
+    p1 = p0 - pp2 # Begin ingress.
+    p2 = p0 - pp1 # End ingress.
+    p3 = p0 + pp1 # Begin egress.
+    p4 = p0 + pp2 # End egress.
+    (flux_intg_rel_s, flux_intg_rel_g) = \
+        bss.utils.calc_fluxes_intg_rel_from_light(
+            light_oc=light_oc, light_ref=light_ref)
+    radii_ratio_lt = \
+        bss.utils.calc_radii_ratio_from_light(
+            light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    phase_orb_ext = p4
+    phase_orb_int = p3
+    incl_rad = \
+        bss.utils.calc_incl_from_radii_ratios_phase_incl(
+            radii_ratio_lt=radii_ratio_lt, phase_orb_ext=phase_orb_ext,
+            phase_orb_int=phase_orb_int, tol=1e-4, maxiter=10, show_plots=show_plots)
+    if incl_rad is np.nan:
+        incl_rad = np.deg2rad(90)
+    sep_proj_ext = bss.utils.calc_sep_proj_from_incl_phase(incl=incl_rad, phase_orb=phase_orb_ext)
+    sep_proj_int = bss.utils.calc_sep_proj_from_incl_phase(incl=incl_rad, phase_orb=phase_orb_int)
+    (radius_sep_s, radius_sep_g) = \
+        bss.utils.calc_radii_sep_from_seps(
+            sep_proj_ext=sep_proj_ext, sep_proj_int=sep_proj_int)
+    geoms = (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt, incl_rad, radius_sep_s, radius_sep_g)
+    return geoms
 
 
 def model_system_from_geometry(params):
