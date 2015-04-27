@@ -1121,3 +1121,272 @@ def has_nans(obj):
         except TypeError:
             pass
     return found_nan
+
+
+# TDOO: insert emcee functions here with model_geometry_from_light_curve.
+
+
+def model_system_from_geometry(params):
+    """Calculate physical system parameters of a spherical binary model
+    
+    """
+# Merge light curve fit with parameters from Gianninas.
+inum = 1
+params_dict[inum] = copy.deepcopy(params_init)
+# From light curve fit, define system inclination and period.
+# TODO: Make programmatic.
+print("Parameters used from light curve fit:\n" +
+      "    System:\n" +
+      "        inclination\n" +
+      "        period\n" +
+      "        relative time begin ingress (used as a check)\n" +
+      "        relative time end ingress (used as a check)\n" +
+      "        relative time begin egress (used as a check)\n" +
+      "        light level during occultation\n" +
+      "        light level during transit\n" +
+      "        light level outside of eclipse\n" +
+      "        radii ratio from light levels\n" +
+      "    Smaller primary:\n" +
+      "        radius in star-star separation distance (used as a check)\n" +
+      "    Greater secondary:\n" +
+      "        radius in star-star separation distance (used as a check)")
+incl_deg = np.median(geoms[tfmask_incl, 3])
+best_period = 86691.1081704 # TODO: get period from mcmc method
+period_day = best_period/sci_con.day
+time_begin_ingress = -np.median(trace[tfmask_incl, 1]) * period_day
+time_end_ingress   = -np.median(trace[tfmask_incl, 0]) * period_day
+time_begin_egress  = -time_begin_ingress
+time_end_egress    = -time_end_ingress # not used below
+light_oc  = np.median(trace[tfmask_incl, 2])
+light_tr  = np.median(trace[tfmask_incl, 4])
+light_ref = np.median(trace[tfmask_incl, 3])
+radii_ratio_lt = np.median(trace[tfmask_incl, 2]) # radius_smaller_primary / radius_greater_secondary
+radius_sep_s   = np.median(geoms[tfmask_incl, 4])
+radius_sep_g   = np.median(geoms[tfmask_incl, 5])
+params_dict[inum]['system'] = \
+    params_dict[inum]['system']._replace(
+        incl_deg = incl_deg,
+        period_day = period_day)
+# From Gianninas, define radial velocity, mass, radius, temperature for smaller primary.
+print("Parameters used from Gianninas:\n" +
+      "    Smaller primary:\n" +
+      "        radial velocity\n" +
+      "        mass\n" +
+      "        radius\n" +
+      "        effective temperature\n")
+params_dict[inum]['smaller_primary'] = \
+    params_dict[inum]['smaller_primary']._replace(
+        velr_kmps   = params_gianninas['K'],
+        mass_Msun   = params_gianninas['M/Mo'],
+        radius_Rsun = params_gianninas['R/Ro'],
+        teff_K      = params_gianninas['Teff'])
+# For system: calculate the mass function.
+params_dict[inum]['system'] = \
+    params_dict[inum]['system']._replace(
+        massfunc_Msun = \
+            (bss.utils.calc_mass_function_from_period_velr(
+                period=params_dict[inum]['system'].period_day*sci_con.day,
+                velr1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo) / ast_con.M_sun.value))
+# For smaller primary: calculate the semi-major axis, logg, and loglum.
+params_dict[inum]['smaller_primary'] = \
+    params_dict[inum]['smaller_primary']._replace(
+        axis_AU = \
+            bss.utils.calc_semimaj_axis_from_period_velr_incl(
+                period=params_dict[inum]['system'].period_day*sci_con.day,
+                velr=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+                incl=np.deg2rad(params_dict[inum]['system'].incl_deg)) / ast_con.au.value,
+        logg_dexcmps2  = \
+            bss.utils.calc_logg_from_mass_radius(
+                mass=params_dict[inum]['smaller_primary'].mass_Msun*ast_con.M_sun.value,
+                radius=params_dict[inum]['smaller_primary'].radius_Rsun*ast_con.R_sun.value),
+        loglum_dexLsun = \
+            bss.utils.calc_loglum_from_radius_teff(
+                radius=params_dict[inum]['smaller_primary'].radius_Rsun*ast_con.R_sun.value,
+                teff=params_dict[inum]['smaller_primary'].teff_K))
+# For greater secondary: calculate the mass.
+params_dict[inum]['greater_secondary'] = \
+    params_dict[inum]['greater_secondary']._replace(
+        mass_Msun = \
+            bss.utils.calc_mass2_from_period_velr1_incl_mass1(
+                period=params_dict[inum]['system'].period_day*sci_con.day,
+                velr1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+                incl=np.deg2rad(params_dict[inum]['system'].incl_deg),
+                mass1=params_dict[inum]['smaller_primary'].mass_Msun*ast_con.M_sun.value) / ast_con.M_sun.value)
+# For greater secondary: Calculate the radial velocity.
+params_dict[inum]['greater_secondary'] = \
+    params_dict[inum]['greater_secondary']._replace(
+        velr_kmps = \
+            bss.utils.calc_velr2_from_masses_period_incl_velr1(
+                mass1=params_dict[inum]['smaller_primary'].mass_Msun*ast_con.M_sun.value,
+                mass2=params_dict[inum]['greater_secondary'].mass_Msun*ast_con.M_sun.value,
+                velr1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+                period=params_dict[inum]['system'].period_day*sci_con.day,
+                incl=np.deg2rad(params_dict[inum]['system'].incl_deg)) / sci_con.kilo)
+# For greater secondary: calculate the radius, teff.
+flux_rad_ratio = \
+    bss.utils.calc_flux_rad_ratio_from_light(
+        light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+teff_ratio = \
+    bss.utils.calc_teff_ratio_from_flux_rad_ratio(flux_rad_ratio=flux_rad_ratio)
+params_dict[inum]['greater_secondary'] = \
+    params_dict[inum]['greater_secondary']._replace(
+        radius_Rsun = params_dict[inum]['smaller_primary'].radius_Rsun / radii_ratio_lt,
+        teff_K = params_dict[inum]['smaller_primary'].teff_K / teff_ratio)
+# For greater secondary: calculate the semi-major axis, logg, and loglum.
+params_dict[inum]['greater_secondary'] = \
+    params_dict[inum]['greater_secondary']._replace(
+        axis_AU = \
+            bss.utils.calc_semimaj_axis_from_period_velr_incl(
+                period=params_dict[inum]['system'].period_day*sci_con.day,
+                velr=params_dict[inum]['greater_secondary'].velr_kmps*sci_con.kilo,
+                incl=np.deg2rad(params_dict[inum]['system'].incl_deg)) / ast_con.au.value,
+        logg_dexcmps2  = \
+            bss.utils.calc_logg_from_mass_radius(
+                mass=params_dict[inum]['greater_secondary'].mass_Msun*ast_con.M_sun.value,
+                radius=params_dict[inum]['greater_secondary'].radius_Rsun*ast_con.R_sun.value),
+        loglum_dexLsun = \
+            bss.utils.calc_loglum_from_radius_teff(
+                radius=params_dict[inum]['greater_secondary'].radius_Rsun*ast_con.R_sun.value,
+                teff=params_dict[inum]['greater_secondary'].teff_K))
+# For system: calculate the star-star separation distance.
+params_dict[inum]['system'] = \
+    params_dict[inum]['system']._replace(
+        sep_AU = \
+            bss.utils.calc_sep_from_semimaj_axes(
+                axis_1=params_dict[inum]['smaller_primary'].axis_AU*ast_con.au.value,
+                axis_2=params_dict[inum]['greater_secondary'].axis_AU*ast_con.au.value) / ast_con.au.value)
+# Check against parameters from Gianninas.
+assert np.isclose(
+    params_gianninas['M_f'],
+    params_dict[inum]['system'].massfunc_Msun,
+    atol=params_gianninas['errMf']) # Difference due to different periods
+assert np.isclose(
+    params_dict[0]['smaller_primary'].axis_AU,
+    params_dict[inum]['smaller_primary'].axis_AU,
+    rtol=1e-1) # Difference is primarily due to different period, then inclination.
+assert np.isclose(
+    params_gianninas['log g'],
+    params_dict[inum]['smaller_primary'].logg_dexcmps2,
+    atol=params_gianninas['errg'])
+assert np.isclose(
+    params_gianninas['log L/Lo'],
+    params_dict[inum]['smaller_primary'].loglum_dexLsun,
+    rtol=1e-2) # Difference is due to rounded inputs for radius, teff.
+assert np.isclose(
+    params_gianninas['M_2'],
+    params_dict[inum]['greater_secondary'].mass_Msun,
+    atol=params_gianninas['errM2'])
+assert np.isclose(
+    params_dict[0]['greater_secondary'].velr_kmps,
+    params_dict[inum]['greater_secondary'].velr_kmps,
+    rtol=1e-1) # Difference is primarily due to different period, then inclination.
+assert np.isclose(
+    params_gianninas['aAU'],
+    params_dict[inum]['system'].sep_AU,
+    atol=params_gianninas['errAU'])
+# Check that the masses are calculated consistently.
+assert (params_dict[inum]['greater_secondary'].mass_Msun >= 
+        params_dict[inum]['system'].massfunc_Msun)
+assert np.isclose(
+    (params_dict[inum]['smaller_primary'].mass_Msun /
+     params_dict[inum]['greater_secondary'].mass_Msun),
+    bss.utils.calc_mass_ratio_from_velrs(
+        velr_1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+        velr_2=params_dict[inum]['greater_secondary'].velr_kmps*sci_con.kilo))
+assert np.isclose(
+    (params_dict[inum]['smaller_primary'].mass_Msun +
+     params_dict[inum]['greater_secondary'].mass_Msun),
+    (bss.utils.calc_mass_sum_from_period_velrs_incl(
+        period=params_dict[inum]['system'].period_day*sci_con.day,
+        velr_1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+        velr_2=params_dict[inum]['greater_secondary'].velr_kmps*sci_con.kilo,
+        incl=np.deg2rad(params_dict[inum]['system'].incl_deg)) / ast_con.M_sun.value))
+# Check that the semi-major axes are calculated consistently.
+assert np.isclose(
+    params_dict[inum]['system'].sep_AU,
+    (params_dict[inum]['smaller_primary'].axis_AU +
+     params_dict[inum]['greater_secondary'].axis_AU))
+# Check that the radii are calculated consistently.
+try:
+    assert np.isclose(
+        radii_ratio_lt,
+        radius_sep_s / radius_sep_g,
+        rtol=1e-1) # Difference is due to median values computed independently
+except AssertionError:
+    warnings.warn(
+        ("\n" +
+         "Radii ratio do not agree:\n" +
+         "    radii_ratio_lt              = {rrl}\n" +
+         "    radius_sep_s / radius_sep_g = {rrs}").format(
+        rrl=radii_ratio_lt, rrs=radius_sep_s/radius_sep_g))
+try:
+    radius_s_from_velrs_times = \
+        bss.utils.calc_radius_from_velrs_times(
+            velr_1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+            velr_2=params_dict[inum]['greater_secondary'].velr_kmps*sci_con.kilo,
+            time_1=time_begin_ingress*sci_con.day,
+            time_2=time_end_ingress*sci_con.day) / ast_con.R_sun.value
+    radius_s_from_radius_sep = \
+        bss.utils.calc_radius_from_radius_sep(
+            radius_sep=radius_sep_s,
+            sep=params_dict[inum]['system'].sep_AU*ast_con.au.value) / ast_con.R_sun.value
+    radius_g_from_velrs_times = \
+        bss.utils.calc_radius_from_velrs_times(
+            velr_1=params_dict[inum]['smaller_primary'].velr_kmps*sci_con.kilo,
+            velr_2=params_dict[inum]['greater_secondary'].velr_kmps*sci_con.kilo,
+            time_1=time_begin_ingress*sci_con.day,
+            time_2=time_begin_egress*sci_con.day) / ast_con.R_sun.value
+    radius_g_from_radius_sep = \
+        bss.utils.calc_radius_from_radius_sep(
+            radius_sep=radius_sep_g,
+            sep=params_dict[inum]['system'].sep_AU*ast_con.au.value) / ast_con.R_sun.value
+    assert np.isclose(
+        params_dict[inum]['smaller_primary'].radius_Rsun,
+        radius_s_from_velrs_times,
+        rtol=1e-1)
+    assert np.isclose(
+        params_dict[inum]['smaller_primary'].radius_Rsun,
+        radius_s_from_radius_sep,
+        rtol=1e-1)
+    assert np.isclose(
+        radius_s_from_velrs_times,
+        radius_s_from_radius_sep,
+        rtol=1e-1)
+    assert np.isclose(
+        params_dict[inum]['greater_secondary'].radius_Rsun,
+        radius_g_from_velrs_times,
+        rtol=1e-1)
+    assert np.isclose(
+        params_dict[inum]['greater_secondary'].radius_Rsun,
+        radius_g_from_radius_sep,
+        rtol=1e-1) # Difference due to 
+    assert np.isclose(
+        radius_g_from_velrs_times,
+        radius_g_from_radius_sep,
+        rtol=1e-1)
+except AssertionError:
+    warnings.warn(
+        ("\n" +
+         "Radii computed from the following methods do not agree:\n" + 
+         "    from Gianninas model radius with radii ratio from light curve light levels:\n" +
+         "        smaller_primary Rsun   = {rs_model}\n" +
+         "        greater_secondary Rsun = {rg_model}\n" +
+         "    from radial velocities and light curve timings:\n" +
+         "    (radial velocity of greater secondary is from\n" +
+         "     calc_velr2_from_masses_period_incl_velr1)\n" +
+         "        smaller_primary Rsun   = {rs_velrs}\n" +
+         "        greater_secondary Rsun = {rg_velrs}\n" +
+         "    from radii-to-separation ratio from light curve timings:\n" +
+         "    (star-star separation is from adding semi-major axes from\n" +
+         "     calc_semimaj_axis_from_period_velr_incl)\n" +
+         "        smaller_primary Rsun   = {rs_seps}\n" +
+         "        greater_secondary Rsun = {rg_seps}").format(
+            rs_model=params_dict[inum]['smaller_primary'].radius_Rsun,
+            rg_model=params_dict[inum]['greater_secondary'].radius_Rsun,
+            rs_velrs=radius_s_from_velrs_times,
+            rg_velrs=radius_g_from_velrs_times,
+            rs_seps=radius_s_from_radius_sep,
+            rg_seps=radius_g_from_radius_sep))
+# Summary
+print('inum =', inum)
+params_dict[inum]
