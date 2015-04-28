@@ -1198,9 +1198,12 @@ def model_geometry_from_light_curve(params, show_plots=False):
     return geoms
 
 
-def model_quantities_from_geometry(geoms, verbose=False):
+def model_quantities_from_geometry_atmosphere_primary(
+    geoms, atmos_pri, verbose=False):
     """Calculate physical quantities of a spherical binary system model
-    from modeled geometric parameters.
+    from modeled geometric and atmospheric parameters. The atmospheric
+    parameters are stellar parameters that are modeled from single-line
+    spectroscopy of the smaller primary star.
     
     Parameters
     ----------
@@ -1215,6 +1218,12 @@ def model_quantities_from_geometry(geoms, verbose=False):
         {radii_ratio_lt} = radius_s / radius_g from light levels
         {incl_rad} = inclination in radians
         {radius_sep_s, radius_sep_g} = radius in star-star separation distance
+    atmos_pri : tuple
+        Tuple of floats representing the parameters of a stellar model
+        that was fit from single-line spectroscopy of the smaller primary star.
+        `atmos = (velr_mps, mass_kg, radius_m, teff_K)`
+        Units are in the MKS system and are specified by the suffix
+        in the quantity names above.
     verbose : {False, True}, bool, optional
         If False (default): Don't print summary output to stdout.
         If True: Print summary output to stdout.
@@ -1225,48 +1234,52 @@ def model_quantities_from_geometry(geoms, verbose=False):
         Tuple of floats representing the physical quantities
         of a spherical binary model from geometric parameters.
         `quants = \
+            (
             # Quantities for the entire binary system
-            (phase0_unixtime_TCB, period_day, incl_deg, sep_AU, massfunc_Msun,
+            phase0_unixtime_TCB, period_day, incl_deg,
+            sep_AU, massfunc_Msun,
             # Quantities for the smaller primary star
-            velr_kmps, axis_AU, radius_Rsun, mass_Msun, logg_dexcmps2, teff_K, loglum_dexLsun,
+            velr_kmps, axis_AU, radius_Rsun, mass_Msun,
+            logg_dexcmps2, teff_K, loglum_dexLsun,
             # Quantities for the greater secondary star
-            velr_kmps, axis_AU, radius_Rsun, mass_Msun, logg_dexcmps2, teff_K, loglum_dexLsun)
-        Units are specified by the suffix in the quantity names above.
+            velr_kmps, axis_AU, radius_Rsun, mass_Msun,
+            logg_dexcmps2, teff_K, loglum_dexLsun
+            )`
+        Units are astronomy-specific and are specified by the suffix
+        in the quantity names above.
 
     See Also
     --------
     model_geometry_from_light_curve
 
     """
-stars = ['smaller_primary', 'greater_secondary']
-attrs_star = ['velr_kmps', 'axis_AU', 'radius_Rsun', 'mass_Msun', 'logg_dexcmps2', 'teff_K', 'loglum_dexLsun']
-attrs_syst = ['phase0_unixtime_TCB', 'period_day', 'incl_deg', 'sep_AU', 'massfunc_Msun']
-quants_star = collections.namedtuple('quants_star', attrs_star)
-quants_syst = collections.namedtuple('quants_syst', attrs_syst)
-quants_init = {star: quants_star(**{attr: np.NaN for attr in attrs_star}) for star in stars}
-quants_init['system'] = quants_syst(**{attr: np.NaN for attr in attrs_syst})
-quants_init
-
-# Merge light curve fit with parameters from Gianninas.
-inum = 1
-quants_dict[inum] = copy.deepcopy(quants_init)
-# From light curve fit, define system inclination and period.
-# TODO: Make programmatic.
-print("Parameters used from light curve fit:\n" +
-      "    System:\n" +
-      "        inclination\n" +
-      "        period\n" +
-      "        relative time begin ingress (used as a check)\n" +
-      "        relative time end ingress (used as a check)\n" +
-      "        relative time begin egress (used as a check)\n" +
-      "        light level during occultation\n" +
-      "        light level during transit\n" +
-      "        light level outside of eclipse\n" +
-      "        radii ratio from light levels\n" +
-      "    Smaller primary:\n" +
-      "        radius in star-star separation distance (used as a check)\n" +
-      "    Greater secondary:\n" +
-      "        radius in star-star separation distance (used as a check)")
+    # TODO: Check input.
+    # Store data internally as a named tuple for clear labeling.
+    stars = ['smaller_primary', 'greater_secondary']
+    attrs_star = ['velr_kmps', 'axis_AU', 'radius_Rsun', 'mass_Msun', 'logg_dexcmps2', 'teff_K', 'loglum_dexLsun']
+    attrs_syst = ['phase0_unixtime_TCB', 'period_day', 'incl_deg', 'sep_AU', 'massfunc_Msun']
+    quants_star = collections.namedtuple('quants_star', attrs_star)
+    quants_syst = collections.namedtuple('quants_syst', attrs_syst)
+    quants = {star: quants_star(**{attr: np.nan for attr in attrs_star}) for star in stars}
+    quants['system'] = quants_syst(**{attr: np.nan for attr in attrs_syst})
+    
+    # From light curve fit, define system inclination and period.
+    # TODO: Make programmatic.
+    print("Parameters used from light curve fit:\n" +
+        "    System:\n" +
+        "        inclination\n" +
+        "        period\n" +
+        "        relative time begin ingress (used as a check)\n" +
+        "        relative time end ingress (used as a check)\n" +
+        "        relative time begin egress (used as a check)\n" +
+        "        light level during occultation\n" +
+        "        light level during transit\n" +
+        "        light level outside of eclipse\n" +
+        "        radii ratio from light levels\n" +
+        "    Smaller primary:\n" +
+        "        radius in star-star separation distance (used as a check)\n" +
+        "    Greater secondary:\n" +
+        "        radius in star-star separation distance (used as a check)")
 incl_deg = np.median(geoms[tfmask_incl, 3])
 best_period = 86691.1081704 # TODO: get period from mcmc method
 period_day = best_period/sci_con.day
