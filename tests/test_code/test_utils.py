@@ -244,4 +244,4 @@ test_has_nans(obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf',
 
 # TODO: test_model_geometry_from_light_curve using binstarsolver example.
 
-# TODO: test_model_system_from_geometry using binstarsolver example.
+# TODO: test_model_quantities_from_light_curve_model
