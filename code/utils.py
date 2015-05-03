@@ -1213,13 +1213,17 @@ def model_quantities_from_lc_velr_atmos(
         {b0, b2, b4, sig} = relative flux
         See `model_flux_rel` for description of parameters.
     velr_s : float
-        Radial velocity of the smaller primary star. Unit is meters/second.
+        Semi-amplitude (half peak-to-peak) of radial velocity
+        of the smaller primary star. Unit is meters/second.
     atmos_s : tuple
         Tuple of floats representing the parameters of a stellar model
-        that was fit from single-line spectroscopy of the smaller primary star.
-        `atmos_s = (mass_kg, radius_m, teff_K)`
-        Units are in the MKS system and are specified by the suffix
-        in the quantity names above.
+        that was fit from single-line spectroscopy of the smaller brighter
+        primary star.
+        `atmos_s = (mass_s, radius_s, teff_s)`
+        Units are MKS:
+        {mass} = stellar mass in kg
+        {radius} = stellar radius in meters
+        {teff} = stellar effective temperature in Kelvin
     verbose : {False, True}, bool, optional
         If False (default): Don't print summary output to stdout.
         If True: Print summary output to stdout.
@@ -1233,9 +1237,9 @@ def model_quantities_from_lc_velr_atmos(
             (# Quantities for the entire binary system
              phase0, period, incl_rad, sep, massfunc,
              # Quantities for the smaller primary star ('_s')
-             velr_s, axis_s, radius_s, mass_s, teff_s,
+             velr_s, axis_s, mass_s, radius_s, teff_s,
              # Quantities for the greater secondary star ('_g')
-             velr_g, axis_g, radius_g, mass_g, teff_g)`
+             velr_g, axis_g, mass_g, radius_g, teff_g)`
         Units are MKS:
         {phase0} = time at which phase of orbit is 0 in
             Unixtime Barycentric Coordinate Time
@@ -1257,6 +1261,7 @@ def model_quantities_from_lc_velr_atmos(
 
     Notes
     -----
+    TODO: manage all data using named tuple structures
     TODO: complete description of how parameters are used.
     - Parameters used from light curve fit:
         System:
@@ -1282,132 +1287,81 @@ def model_quantities_from_lc_velr_atmos(
 
     """
     # TODO: Check input.
-    # Extract light curve parameters, calculate geometric parameters,
-    # extract stellar model parameters.
-    # TODO: get phase0 and period_sec from lc_params.
-    phase0_unixtime_TCB = np.nan
-    period_sec = 86691.1081704
+    # Define and compute physical quantities.
+    # For system; from light curve:
+    # define the phase, period, inclination.
+    # TODO: get phase0 and period from lc_params.
+    phase0 = np.nan
+    period = 86691.1081704
     (p1, p2, b0, b2, b4, sig) = lc_params
     light_ref = b2 # Between minima.
-    light_oc = b0 # During occultation minima.
-    light_tr = b4 # During transit minima.
+    light_oc = b0  # During occultation minima.
+    light_tr = b4  # During transit minima.
     (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
      incl_rad, radius_sep_s, radius_sep_g) = \
         model_geometry_from_light_curve(params=lc_params, show_plots=False)
+    # For smaller primary; from stellar model:
+    # define mass, radius, temperature.
     (mass_s, radius_s, teff_s) = atmos_s
-    # Store data internally as a named tuple with unit for clear labeling.
-    stars = ['smaller_primary', 'greater_secondary']
-    attrs_star = ['velr_mps', 'axis_m', 'radius_m', 'mass_kg', 'teff_K']
-    attrs_syst = ['phase0_unixtime_TCB', 'period_sec',
-                  'incl_rad', 'sep_m', 'massfunc_kg']
-    quants_star = collections.namedtuple('quants_star', attrs_star)
-    quants_syst = collections.namedtuple('quants_syst', attrs_syst)
-    quants = \
-      {star: quants_star(**{attr: np.nan for attr in attrs_star})
-       for star in stars}
-    quants['system'] = quants_syst(**{attr: np.nan for attr in attrs_syst})
-    # For system, from light curve:
-    # define the phase, period, inclination.
-    quants['system'] = \
-        quants['system']._replace(
-            phase0_unixtime_TCB = phase0_unixtime_TCB,
-            period_sec = period_sec,
-            incl_rad   = incl_rad)
-    # For smaller primary, from stellar model:
-    # define radial velocity, mass, radius, temperature.
-    quants['smaller_primary'] = \
-        quants['smaller_primary']._replace(
-            velr_mps = velr_mps,
-            mass_kg  = mass_kg,
-            radius_m = radius_m,
-            teff_K   = teff_K)
-    # For system, from light curve and stellar model:
+    # For system; from light curve and stellar model:
     # calculate the mass function.
-    quants['system'] = \
-        quants['system']._replace(
-            massfunc_kg = \
-                bss.utils.calc_mass_function_from_period_velr(
-                    period=quants['system'].period_sec,
-                    velr1=quants['smaller_primary'].velr_mps))
-    # For smaller primary, from : calculate the semi-major axis.
-    quants['smaller_primary'] = \
-        quants['smaller_primary']._replace(
-            axis_m = \
-                bss.utils.calc_semimaj_axis_from_period_velr_incl(
-                    period=quants['system'].period_sec,
-                    velr=quants['smaller_primary'].velr_mps,
-                    incl=quants['system'].incl_rad))
-# For greater secondary: calculate the mass.
-quants['greater_secondary'] = \
-    quants['greater_secondary']._replace(
-        mass_kg = \
-            bss.utils.calc_mass2_from_period_velr1_incl_mass1(
-                period=quants['system'].period_sec*sci_con.day,
-                velr1=quants['smaller_primary'].velr_mps*sci_con.kilo,
-                incl=np.deg2rad(quants['system'].incl_rad),
-                mass1=quants['smaller_primary'].mass_kg*ast_con.M_sun.value) / ast_con.M_sun.value)
-# For greater secondary: Calculate the radial velocity.
-quants['greater_secondary'] = \
-    quants['greater_secondary']._replace(
-        velr_mps = \
-            bss.utils.calc_velr2_from_masses_period_incl_velr1(
-                mass1=quants['smaller_primary'].mass_kg*ast_con.M_sun.value,
-                mass2=quants['greater_secondary'].mass_kg*ast_con.M_sun.value,
-                velr1=quants['smaller_primary'].velr_mps*sci_con.kilo,
-                period=quants['system'].period_sec*sci_con.day,
-                incl=np.deg2rad(quants['system'].incl_rad)) / sci_con.kilo)
-# For greater secondary: calculate the radius, teff.
-flux_rad_ratio = \
-    bss.utils.calc_flux_rad_ratio_from_light(
-        light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
-teff_ratio = \
-    bss.utils.calc_teff_ratio_from_flux_rad_ratio(flux_rad_ratio=flux_rad_ratio)
-quants['greater_secondary'] = \
-    quants['greater_secondary']._replace(
-        radius_m = quants['smaller_primary'].radius_m / radii_ratio_lt,
-        teff_K = quants['smaller_primary'].teff_K / teff_ratio)
-# For greater secondary: calculate the semi-major axis.
-quants['greater_secondary'] = \
-    quants['greater_secondary']._replace(
-        axis_m = \
-            bss.utils.calc_semimaj_axis_from_period_velr_incl(
-                period=quants['system'].period_sec*sci_con.day,
-                velr=quants['greater_secondary'].velr_mps*sci_con.kilo,
-                incl=np.deg2rad(quants['system'].incl_rad)))
-# For system: calculate the star-star separation distance.
-quants['system'] = \
-    quants['system']._replace(
-        sep_m = \
-            bss.utils.calc_sep_from_semimaj_axes(
-                axis_1=quants['smaller_primary'].axis_m*ast_con.au.value,
-                axis_2=quants['greater_secondary'].axis_m*ast_con.au.value) / ast_con.au.value)
-# Check that the masses are calculated consistently.
-assert (quants['greater_secondary'].mass_kg >= 
-        quants['system'].massfunc_kg)
-assert np.isclose(
-    (quants['smaller_primary'].mass_kg /
-     quants['greater_secondary'].mass_kg),
-    bss.utils.calc_mass_ratio_from_velrs(
-        velr_1=quants['smaller_primary'].velr_mps*sci_con.kilo,
-        velr_2=quants['greater_secondary'].velr_mps*sci_con.kilo))
-assert np.isclose(
-    (quants['smaller_primary'].mass_kg +
-     quants['greater_secondary'].mass_kg),
-    (bss.utils.calc_mass_sum_from_period_velrs_incl(
-        period=quants['system'].period_sec*sci_con.day,
-        velr_1=quants['smaller_primary'].velr_mps*sci_con.kilo,
-        velr_2=quants['greater_secondary'].velr_mps*sci_con.kilo,
-        incl=np.deg2rad(quants['system'].incl_rad)) / ast_con.M_sun.value))
-# Check that the semi-major axes are calculated consistently.
-assert np.isclose(
-    quants['system'].sep_m,
-    (quants['smaller_primary'].axis_m +
-     quants['greater_secondary'].axis_m))
-# Check that the radii are calculated consistently.
-try:
+    massfunc = \
+        bss.utils.calc_mass_function_from_period_velr(
+            period=period, velr1=velr_s)
+    # For smaller primary; from light curve and radial velocity:
+    # calculate the semi-major axis.
+    axis_s = \
+        bss.utils.calc_semimaj_axis_from_period_velr_incl(
+            period=period, velr=velr_s, incl=incl_rad)
+    # For greater secondary; from light curve, radial velocity,
+    # and stellar model: calculate the mass.
+    mass_g = \
+        bss.utils.calc_mass2_from_period_velr1_incl_mass1(
+            period=period, velr1=velr_s, incl=incl_rad, mass1=mass_s)
+    # For greater secondary; from light curve, radial velocity,
+    # and stellar model: calculate the radial velocity.
+    velr_g = \
+        bss.utils.calc_velr2_from_masses_period_incl_velr1(
+            mass1=mass_s, mass2=mass_g, velr1=velr_s,
+            period=period, incl=incl_rad)
+    # For greater secondary; from light curve and stellar model:
+    # calculate the radius, teff.
+    flux_rad_ratio = \
+        bss.utils.calc_flux_rad_ratio_from_light(
+            light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    teff_ratio = \
+        bss.utils.calc_teff_ratio_from_flux_rad_ratio(
+            flux_rad_ratio=flux_rad_ratio)
+    radius_g = radius_s * (radius_sep_g / radius_sep_s),
+    teff_g = teff_s / teff_ratio
+    # For greater secondary; from light curve, radial velocity,
+    # and stellar model: calculate the semi-major axis.
+    axis_g = \
+        bss.utils.calc_semimaj_axis_from_period_velr_incl(
+            period=period, velr=velr_g, incl=incl_rad)
+    # For system; from light curve, radial velocity,
+    # and stellar model: calculate the star-star separation distance.
+    sep = \
+        bss.utils.calc_sep_from_semimaj_axes(
+            axis_1=axis_s, axis_2=axis_s)
+    # Check calculations.
+    # Check that the masses are calculated consistently.
+    assert (mass_g >= massfunc)
     assert np.isclose(
-        radii_ratio_lt,
-        radius_sep_s / radius_sep_g,
+        mass_s / mass_g,
+        bss.utils.calc_mass_ratio_from_velrs(
+            velr_1=velr_s, velr_2=.velr_g)
+    assert np.isclose(
+        mass_s + mass_g,
+        bss.utils.calc_mass_sum_from_period_velrs_incl(
+            period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad))
+    # Check that the semi-major axes are calculated consistently.
+    assert np.isclose(sep, axis_s + axis_g))
+    # Check that the radii are calculated consistently.
+    try:
+        assert np.isclose(
+            radii_ratio_lt,
+            radius_sep_s / radius_sep_g,
         rtol=1e-1) # Difference is due to median values computed independently
 except AssertionError:
     warnings.warn(
