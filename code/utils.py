@@ -1196,7 +1196,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
 
 
 def model_quantities_from_lc_velr_atmos(
-    lc_params, velr_s, atmos_s, verbose=False):
+    lc_params, velr_s, atmos_s:
     """Calculate physical quantities of a spherical binary system model
     from its light curve parameters, radial velocity of the smaller primary,
     and modeled atmospheric parameters of the smaller primary. The atmospheric
@@ -1224,9 +1224,6 @@ def model_quantities_from_lc_velr_atmos(
         {mass} = stellar mass in kg
         {radius} = stellar radius in meters
         {teff} = stellar effective temperature in Kelvin
-    verbose : {False, True}, bool, optional
-        If False (default): Don't print summary output to stdout.
-        If True: Print summary output to stdout.
     
     Returns
     -------
@@ -1297,6 +1294,9 @@ def model_quantities_from_lc_velr_atmos(
     light_ref = b2 # Between minima.
     light_oc = b0  # During occultation minima.
     light_tr = b4  # During transit minima.
+    time_begin_ingress = -p2 * period
+    time_end_ingress   = -p1 * period
+    time_begin_egress  = -time_begin_ingress
     (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
      incl_rad, radius_sep_s, radius_sep_g) = \
         model_geometry_from_light_curve(params=lc_params, show_plots=False)
@@ -1358,18 +1358,68 @@ def model_quantities_from_lc_velr_atmos(
     # Check that the semi-major axes are calculated consistently.
     assert np.isclose(sep, axis_s + axis_g))
     # Check that the radii are calculated consistently.
+    # There may be a difference if there was no self-consistent solution
+    # for inclination.
     try:
         assert np.isclose(
             radii_ratio_lt,
-            radius_sep_s / radius_sep_g,
-        rtol=1e-1) # Difference is due to median values computed independently
-except AssertionError:
-    warnings.warn(
-        ("\n" +
-         "Radii ratio do not agree:\n" +
-         "    radii_ratio_lt              = {rrl}\n" +
-         "    radius_sep_s / radius_sep_g = {rrs}").format(
-        rrl=radii_ratio_lt, rrs=radius_sep_s/radius_sep_g))
-# Summary
-print('inum =', inum)
-quants
+            radius_sep_s / radius_sep_g)
+    except AssertionError:
+        warnings.warn(
+            ("\n" +
+             "Radii ratio do not agree. The solution for inclination\n" +
+             "may not be self-consistent:\n" +
+             "    radii_ratio_lt              = {rrl}\n" +
+             "    radius_sep_s / radius_sep_g = {rrs}").format(
+             rrl=radii_ratio_lt, rrs=radius_sep_s/radius_sep_g))
+    try:
+        rtol=1e-1
+        radius_s_from_velrs_times = \
+            bss.utils.calc_radius_from_velrs_times(
+                velr_1=velr_s, velr_2=velr_g,
+                time_1=time_begin_ingress, time_2=time_end_ingress)
+        radius_s_from_radius_sep = \
+            bss.utils.calc_radius_from_radius_sep(
+                radius_sep=radius_sep_s, sep=sep)
+        radius_g_from_velrs_times = \
+            bss.utils.calc_radius_from_velrs_times(
+                velr_1=velr_s, velr_2=velr_g,
+                time_1=time_begin_ingress, time_2=time_begin_egress)
+        radius_g_from_radius_sep = \
+            bss.utils.calc_radius_from_radius_sep(
+                radius_sep=radius_sep_g, sep=sep)
+        assert np.isclose(
+            radius_s, radius_s_from_velrs_times, rtol=rtol)
+        assert np.isclose(
+            radius_s, radius_s_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_s_from_velrs_times, radius_s_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_g, radius_g_from_velrs_times, rtol=rtol)
+        assert np.isclose(
+            radius_g, radius_g_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_g_from_velrs_times, radius_g_from_radius_sep, rtol=rtol)
+    except AssertionError:
+        warnings.warn(
+            ("\n" +
+             "Radii computed from the following methods do not agree\n" +
+             "to within rtol={rtol}. Units are meters:\n" +
+             "    radius_s = {rs}\n" +
+             "    radius_s_from_velrs_times = {rs_vt}\n" +
+             "    radius_s_from_radius_sep = {rs_rs}\n" +
+             "    radius_g = {rg}\n" +
+             "    radius_g_from_velrg_times = {rg_vt}\n" +
+             "    radius_g_from_radius_sep = {rg_rs}").format(
+                 rtol=rtol,
+                 rs=radius_s,
+                 rs_vt=radius_s_from_velrs_times,
+                 rs_rs=radius_s_from_radius_sep,
+                 rg=radius_g,
+                 rg_vt=radius_g_from_velrs_times,
+                 rg_rs=radius_g_from_radius_sep))
+    quants = \
+        (phase0, period, incl_rad, sep, massfunc,
+         velr_s, axis_s, mass_s, radius_s, teff_s,
+         velr_g, axis_g, mass_g, radius_g, teff_g)
+    return quants
