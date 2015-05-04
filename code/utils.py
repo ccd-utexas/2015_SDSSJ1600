@@ -14,6 +14,7 @@ import warnings
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
+import binstarsolver as bss
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -36,7 +37,8 @@ def plot_periodogram(
         `matplotlib.pyplot` attribute to plot periods x-scale in
         'log' (default) or 'linear' scale.
     n_terms : {1}, int, optional
-        Number of Fourier terms used to fit the light curve for labeling the plot.
+        Number of Fourier terms used to fit the light curve.
+        Used for labeling the plot.
         Example: n_terms=1 will label the title with
         "Generalized Lomb-Scargle periodogram\nwith 1 Fourier terms fit"
     period_unit : {'seconds'}, string, optional
@@ -48,7 +50,8 @@ def plot_periodogram(
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
-        If `True`, return a `matplotlib.axes` instance for additional modification.
+        If `True`, return a `matplotlib.axes` instance for additional
+        modification.
 
     Returns
     -------
@@ -57,7 +60,8 @@ def plot_periodogram(
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     fig = plt.figure()
@@ -80,9 +84,9 @@ def plot_periodogram(
 
 
 def calc_periodogram(
-        times, fluxes, fluxes_err, min_period=None, max_period=None, num_periods=None,
-        sigs=(95.0, 99.0), num_bootstraps=100, show_periodogram=True,
-        period_unit='seconds', flux_unit='relative'):
+        times, fluxes, fluxes_err, min_period=None, max_period=None,
+        num_periods=None, sigs=(95.0, 99.0), num_bootstraps=100,
+        show_periodogram=True, period_unit='seconds', flux_unit='relative'):
     r"""Calculate periods, powers, and significance levels using generalized
     Lomb-Scargle periodogram. Convenience function for methods from [1]_.
        
@@ -149,9 +153,10 @@ def calc_periodogram(
     - Maximum period default calculation:
         max_period = 0.5 * (max(times) - min(times))
     - Number of periods default calculation:
-        num_periods = int(min(
-            (max(times) - min(times)) / np.median(np.diff(times))),
-            1e4)
+        num_periods = \
+            int(min(
+                (max(times) - min(times)) / np.median(np.diff(times))),
+                 1e4)
     - Period sampling is linear in angular frequency space
         with more samples for shorter periods.
     - Computing periodogram of 1e4 periods with 100 bootstraps
@@ -162,8 +167,10 @@ def calc_periodogram(
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy'
-    .. [2] http://zone.ni.com/reference/en-XX/help/372416B-01/svtconcepts/fft_funda/
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy'
+    .. [2] http://zone.ni.com/reference/en-XX/help/372416B-01/svtconcepts/
+           fft_funda/
     
     """
     # Check inputs.
@@ -173,10 +180,11 @@ def calc_periodogram(
         min_period = min_period_nyquist
     elif min_period < min_period_nyquist:
         warnings.warn(
-            ("`min_period` is less than the Nyquist period limit (2x the median sampling period).\n" +
+            ("`min_period` is less than the Nyquist period limit\n" +
+             "(2x the median sampling period).\n" +
              "Input: min_period = {per}\n" +
-             "Nyquist: min_period_nyquist = {per_nyq}").format(per=min_period,
-                                                               per_nyq=min_period_nyquist))
+             "Nyquist: min_period_nyquist = {per_nyq}").format(
+                 per=min_period, per_nyq=min_period_nyquist))
     acquisition_time = max(times) - min(times)
     max_period_acqtime = 0.5 * acquisition_time
     if max_period is None:
@@ -185,28 +193,36 @@ def calc_periodogram(
         warnings.warn(
             ("`max_period` is greater than 0.5x the acquisition time.\n" +
              "Input: max_period = {per}\n" +
-             "From data: max_period_acqtime = {per_acq}").format(per=max_period,
-                                                                 per_acq=max_period_acqtime))
+             "From data: max_period_acqtime = {per_acq}").format(
+                 per=max_period, per_acq=max_period_acqtime))
     max_num_periods = int(acquisition_time / median_sampling_period)
     if num_periods is None:
         num_periods = int(min(max_num_periods, 1e4))
     elif num_periods > max_num_periods:
         warnings.warn(
-            ("`num_periods` is greater than acquisition time div. by median sampling period.\n" +
+            ("`num_periods` is greater than acquisition time divided by\n" +
+             "the median sampling period.\n" +
              "Input: num_periods = {num}\n" +
-             "From data: max_num_periods = {max_num}").format(num=num_periods,
-                                                              max_num=max_num_periods))        
+             "From data: max_num_periods = {max_num}").format(
+                 num=num_periods, max_num=max_num_periods))        
     comp_time = 85.0 * (num_periods/1e4) * (num_bootstraps/100) # in seconds
     if comp_time > 10.0:
-        print("INFO: Estimated computation time: {time:.0f} sec".format(time=comp_time))
+        print("INFO: Estimated computation time: {time:.0f} sec".format(
+            time=comp_time))
     # Compute periodogram.
     max_omega = 2.0 * np.pi / min_period
     min_omega = 2.0 * np.pi / max_period
-    omegas = np.linspace(start=min_omega, stop=max_omega, num=num_periods, endpoint=True)
+    omegas = \
+        np.linspace(
+            start=min_omega, stop=max_omega, num=num_periods, endpoint=True)
     periods = 2.0 * np.pi / omegas
-    powers = astroML_ts.lomb_scargle(t=times, y=fluxes, dy=fluxes_err, omega=omegas, generalized=True)
-    dists = astroML_ts.lomb_scargle_bootstrap(t=times, y=fluxes, dy=fluxes_err, omega=omegas, generalized=True,
-                                              N_bootstraps=num_bootstraps, random_state=0)
+    powers = \
+        astroML_ts.lomb_scargle(
+            t=times, y=fluxes, dy=fluxes_err, omega=omegas, generalized=True)
+    dists = \
+        astroML_ts.lomb_scargle_bootstrap(
+            t=times, y=fluxes, dy=fluxes_err, omega=omegas, generalized=True,
+            N_bootstraps=num_bootstraps, random_state=0)
     sigs_powers = zip(sigs, np.percentile(dists, sigs))
     if show_periodogram:
         # Plot custom periodogram with delta BIC.
@@ -228,12 +244,15 @@ def calc_periodogram(
         ax1.set_ylabel("delta BIC")
         plt.show()
         for (sig, power) in sigs_powers:
-            print("INFO: At significance = {sig}%, power spectral density = {pwr}".format(sig=sig, pwr=power))
+            print(
+                ("INFO: At significance = {sig}%, " +
+                 "power spectral density = {pwr}").format(
+                    sig=sig, pwr=power))
     return (periods, powers, sigs_powers)
 
 
 def select_sig_periods_powers(
-        peak_periods, peak_powers, cutoff_power):
+    peak_periods, peak_powers, cutoff_power):
     r"""Select the periods with peak powers above the cutoff power.
            
     Parameters
@@ -241,12 +260,12 @@ def select_sig_periods_powers(
     peak_periods : numpy.ndarray
         1D array of periods. Unit is time, e.g. seconds or days.
     peak_powers  : numpy.ndarray
-        1D array of powers. Unit is Lomb-Scargle power spectral density from flux
-        and angular frequency, e.g. from relative flux,
+        1D array of powers. Unit is Lomb-Scargle power spectral density
+        from flux and angular frequency, e.g. from relative flux,
         angular frequency 2*pi/seconds.
     cutoff_power : float
-        Power corresponding to a level of statistical significance. Only periods
-        above this cutoff power level are returned.
+        Power corresponding to a level of statistical significance.
+        Only periods above this cutoff power level are returned.
     
     Returns
     -------
@@ -328,34 +347,46 @@ def calc_best_period(
       resolution of the original data. Adopted from [2]_.
         acquisition_time = max(times) - min(times)
         omega_resolution = 2.0 * np.pi / acquisition_time
-        num_omegas = 1000 # chosen to balance fast computation with medium range
+        num_omegas = 1000 # balance fast computation with medium range
         anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-        sampling_precision = 0.1 # ensure sampling precision is higher than data precision
-        range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+        # ensure sampling precision is higher than data precision
+        sampling_precision = 0.1 
+        range_omega_halfwidth = \
+            ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+             sampling_precision)
     - Calculating best period from 100 candidate periods takes ~61 seconds for a single 2.7 GHz core.
-      Computation time is approximately linear with number of candidate periods.
+      Computation time is approx linear with number of candidate periods.
     - Call after `astroML.time_series.search_frequencies`.
     - Call before `calc_num_terms`.
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/fft_funda/
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/
+           fft_funda/
     
     """
     # Check input
-    candidate_periods = sorted(candidate_periods) # sort to allow combining identical periods
+    # TODO: separate as a function
+    # sort to allow combining identical periods
+    candidate_periods = sorted(candidate_periods) 
     comp_time = 61 * len(candidate_periods)/100 
     if comp_time > 10.0:
-        print("INFO: Estimated computation time: {time:.0f} sec".format(time=comp_time))
-    # Calculate the multiterm periodograms using a range around each candidate angular frequency
-    # based on the angular frequency resolution of the original data.
+        print("INFO: Estimated computation time: {time:.0f} sec".format(
+            time=comp_time))
+    # Calculate the multiterm periodograms using a range around each
+    # candidate angular frequency based on the angular frequency resolution
+    # of the original data.
     acquisition_time = max(times) - min(times)
     omega_resolution = 2.0 * np.pi / acquisition_time
     num_omegas = 1000 # chosen to balance fast computation with medium range
     anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    sampling_precision = 0.1 # ensure sampling precision is higher than data precision
-    range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+    # ensure sampling precision is higher than data precision
+    sampling_precision = 0.1 
+    range_omega_halfwidth = \
+        ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+         sampling_precision)
     max_period = 0.5 * acquisition_time
     min_omega = 2.0 * np.pi / max_period
     median_sampling_period = np.median(np.diff(times))
@@ -372,15 +403,19 @@ def calc_best_period(
                     num=num_omegas, endpoint=True),
                 min_omega, max_omega)
         range_periods = 2.0 * np.pi / range_omegas
-        range_powers = astroML_ts.multiterm_periodogram(t=times, y=fluxes, dy=fluxes_err,
-                                                        omega=range_omegas, n_terms=n_terms)
-        range_bic_max = max(astroML_ts.lomb_scargle_BIC(P=range_powers, y=fluxes, dy=fluxes_err,
-                                                        n_harmonics=n_terms))
+        range_powers = \
+            astroML_ts.multiterm_periodogram(
+                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+                n_terms=n_terms)
+        range_bic_max = \
+            max(astroML_ts.lomb_scargle_BIC(
+                P=range_powers, y=fluxes, dy=fluxes_err, n_harmonics=n_terms))
         range_omega_best = range_omegas[np.argmax(range_powers)]
         range_period_best = 2.0 * np.pi / range_omega_best
         # Combine identical periods, but only keep the larger delta BIC.
         if len(periods_bics) > 0:
-            if np.isclose(last_range_omega_best, range_omega_best, atol=omega_resolution):
+            if np.isclose(last_range_omega_best, range_omega_best,
+                          atol=omega_resolution):
                 if last_range_bic_max < range_bic_max:
                     periods_bics[-1] = (range_period_best, range_bic_max)
             else:
@@ -391,11 +426,16 @@ def calc_best_period(
         last_range_omega_best = 2.0 * np.pi / last_range_period_best
         if show_periodograms:
             print(80*'-')
-            plot_periodogram(periods=range_periods, powers=range_powers, xscale='linear', n_terms=n_terms,
-                             period_unit=period_unit, flux_unit=flux_unit, return_ax=False)
-            print("Candidate period: {per} seconds".format(per=candidate_period))
-            print("Best period within window: {per} seconds".format(per=range_period_best))
-            print("Relative Bayesian Information Criterion: {bic}".format(bic=range_bic_max))
+            plot_periodogram(
+                periods=range_periods, powers=range_powers, xscale='linear',
+                n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+                return_ax=False)
+            print("Candidate period: {per} seconds".format(
+                per=candidate_period))
+            print("Best period within window: {per} seconds".format(
+                per=range_period_best))
+            print("Relative Bayesian Information Criterion: {bic}".format(
+                bic=range_bic_max))
     # Choose the best period from the maximum delta BIC.
     best_idx = np.argmax(zip(*periods_bics)[1])
     (best_period, best_bic) = periods_bics[best_idx]
@@ -405,7 +445,8 @@ def calc_best_period(
         periods_bics_t = zip(*periods_bics)
         fig = plt.figure()
         ax = fig.add_subplot(111, xscale='log')
-        ax.plot(periods_bics_t[0], periods_bics_t[1], color='black', marker='o')
+        ax.plot(
+            periods_bics_t[0], periods_bics_t[1], color='black', marker='o')
         ax.set_title("Relative Bayesian Information Criterion vs period")
         ax.set_xlabel("Period (seconds)")
         ax.set_ylabel("delta BIC")
@@ -419,26 +460,33 @@ def calc_best_period(
                     num=num_omegas, endpoint=True),
                 min_omega, max_omega)
         range_periods = 2.0 * np.pi / range_omegas
-        range_powers = astroML_ts.multiterm_periodogram(t=times, y=fluxes, dy=fluxes_err,
-                                                        omega=range_omegas, n_terms=n_terms)
-        plot_periodogram(periods=range_periods, powers=range_powers, xscale='linear', n_terms=n_terms,
-                         period_unit=period_unit, flux_unit=flux_unit, return_ax=False)
+        range_powers = \
+            astroML_ts.multiterm_periodogram(
+                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+                n_terms=n_terms)
+        plot_periodogram(
+            periods=range_periods, powers=range_powers, xscale='linear',
+            n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+            return_ax=False)
         print("Best period: {per} seconds".format(per=best_period))
-        print("Relative Bayesian Information Criterion: {bic}".format(bic=best_bic))
+        print("Relative Bayesian Information Criterion: {bic}".format(
+            bic=best_bic))
     return best_period
 
 
 def calc_num_terms(
-    times, fluxes, fluxes_err, best_period, max_n_terms=20, show_periodograms=False,
-    show_summary_plots=True, period_unit='seconds', flux_unit='relative'):
-    r"""Calculate the number of Fourier terms that best represent the data's underlying
-    variability for representation by a multi-term generalized Lomb-Scargle
-    periodogram. Convenience function for methods from [1]_.
+    times, fluxes, fluxes_err, best_period, max_n_terms=20,
+    show_periodograms=False, show_summary_plots=True, period_unit='seconds',
+    flux_unit='relative'):
+    r"""Calculate the number of Fourier terms that best represent the data's
+    underlying variability for representation by a multi-term generalized
+    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time, e.g. seconds or days.
+        1D array of time coordinates for data. Unit is time,
+        e.g. seconds or days.
     fluxes : numpy.ndarray
         1D array of fluxes. Unit is integrated flux,
         e.g. relative flux or magnitudes.
@@ -454,22 +502,22 @@ def calc_num_terms(
         If `False` (default), do not display periodograms (power vs period)
         for each candidate number of terms.
     show_summary_plots : {True, False}, bool, optional
-        If `True` (default), display summary plots of delta BIC vs number of terms,
-        periodogram and phased light curve for best fit number of terms.
+        If `True` (default), display summary plots of delta BIC vs number of
+        terms, periodogram and phased light curve for best fit number of terms.
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plots.
-        Example: period_unit='seconds', flux_unit='relative' will label the x-axis
-        with "Period (seconds)" and label the y-axis with
+        Example: period_unit='seconds', flux_unit='relative' will label the
+        x-axis with "Period (seconds)" and label the y-axis with
         "Lomb-Scargle Power Spectral Density\n" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     
     Returns
     -------
     best_n_terms : int
-        Number of Fourier terms that best fit the light curve. The number of terms
-        is determined by the maximum relative Bayesian Information Criterion, from
-        section 10.3.3 of [1]_.
+        Number of Fourier terms that best fit the light curve. The number of
+        terms is determined by the maximum relative
+        Bayesian Information Criterion, from section 10.3.3 of [1]_.
     phases : ndarray
         The phase coordinates of the best-fit light curve.
         Unit is decimal orbital phase.
@@ -486,29 +534,38 @@ def calc_num_terms(
 
     Notes
     -----
-    -  Range around the best period is based on the angular frequency resolution
-        of the original data. Adopted from [2]_.
-        acquisition_time = max(times) - min(times)
-        omega_resolution = 2.0 * np.pi / acquisition_time
-        num_omegas = 1000 # chosen to balance fast computation with medium range
-        anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-        sampling_precision = 0.1 # ensure sampling precision is higher than data precision
-        range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+    -  Range around the best period is based on the angular frequency
+       resolution of the original data. Adopted from [2]_.
+       acquisition_time = max(times) - min(times)
+       omega_resolution = 2.0 * np.pi / acquisition_time
+       num_omegas = 1000 # chosen to balance fast computation with medium range
+       anti_aliasing = 1.0 / 2.56 # remove digital aliasing
+       # ensure sampling precision is higher than data precision
+       sampling_precision = 0.1 
+       range_omega_halfwidth = \
+           ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+            sampling_precision)
     - Call after `calc_best_period`.
     - Call before `refine_best_period`.
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
-    # Calculate the multiterm periodograms and choose the best number of terms from the maximum relative BIC.
+    # TODO: separate as own function.
+    # Calculate the multiterm periodograms and choose the best number of
+    # terms from the maximum relative BIC.
     acquisition_time = max(times) - min(times)
     omega_resolution = 2.0 * np.pi / acquisition_time
     num_omegas = 1000 # chosen to balance fast computation with medium range
     anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    sampling_precision = 0.1 # ensure sampling precision is higher than data precision
-    range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+    # ensure sampling precision is higher than data precisionR
+    sampling_precision = 0.1 
+    range_omega_halfwidth = \
+        ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+         sampling_precision)
     max_period = 0.5 * acquisition_time
     min_omega = 2.0 * np.pi / max_period
     median_sampling_period = np.median(np.diff(times))
@@ -525,23 +582,30 @@ def calc_num_terms(
     range_periods = 2.0 * np.pi / range_omegas
     nterms_bics = []
     for n_terms in range(1, max_n_terms+1):
-        range_powers = astroML_ts.multiterm_periodogram(t=times, y=fluxes, dy=fluxes_err,
-                                                        omega=range_omegas, n_terms=n_terms)
-        range_bic_max = max(astroML_ts.lomb_scargle_BIC(P=range_powers, y=fluxes, dy=fluxes_err,
-                                                        n_harmonics=n_terms))
+        range_powers = \
+            astroML_ts.multiterm_periodogram(
+                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+                n_terms=n_terms)
+        range_bic_max = \
+            max(astroML_ts.lomb_scargle_BIC(
+                P=range_powers, y=fluxes, dy=fluxes_err, n_harmonics=n_terms))
         nterms_bics.append((n_terms, range_bic_max))
         if show_periodograms:
             print(80*'-')
-            plot_periodogram(periods=range_periods, powers=range_powers, xscale='linear', n_terms=n_terms,
-                             period_unit=period_unit, flux_unit=flux_unit, return_ax=False)
+            plot_periodogram(
+                periods=range_periods, powers=range_powers, xscale='linear',
+                n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+                return_ax=False)
             print("Number of Fourier terms: {num}".format(num=n_terms))
-            print("Relative Bayesian Information Criterion: {bic}".format(bic=range_bic_max))
+            print("Relative Bayesian Information Criterion: {bic}".format(
+                bic=range_bic_max))
     # Choose the best number of Fourier terms from the maximum delta BIC.
     best_idx = np.argmax(zip(*nterms_bics)[1])
     (best_n_terms, best_bic) = nterms_bics[best_idx]
     mtf = astroML_ts.MultiTermFit(omega=best_omega, n_terms=best_n_terms)
     mtf.fit(t=times, y=fluxes, dy=fluxes_err)
-    (phases, fits_phased, times_phased) = mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
+    (phases, fits_phased, times_phased) = \
+        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
     if show_summary_plots:
         # Plot delta BICs after all terms have been fit.
         print(80*'-')
@@ -555,19 +619,25 @@ def calc_num_terms(
         ax.set_xlabel("number of Fourier terms")
         ax.set_ylabel("delta BIC")
         plt.show()
-        range_powers = astroML_ts.multiterm_periodogram(t=times, y=fluxes, dy=fluxes_err,
-                                                        omega=range_omegas, n_terms=best_n_terms)
-        plot_periodogram(periods=range_periods, powers=range_powers, xscale='linear', n_terms=best_n_terms,
-                         period_unit=period_unit, flux_unit=flux_unit, return_ax=False)
+        range_powers = \
+            astroML_ts.multiterm_periodogram(
+                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+                n_terms=best_n_terms)
+        plot_periodogram(
+            periods=range_periods, powers=range_powers, xscale='linear',
+            n_terms=best_n_terms, period_unit=period_unit,
+            flux_unit=flux_unit, return_ax=False)
         print("Best number of Fourier terms: {num}".format(num=best_n_terms))
-        print("Relative Bayesian Information Criterion: {bic}".format(bic=best_bic))
+        print("Relative Bayesian Information Criterion: {bic}".format(
+            bic=best_bic))
     return (best_n_terms, phases, fits_phased, times_phased)
 
 
 def plot_phased_light_curve(
         phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
         flux_unit='relative', return_ax=False):
-    r"""Plot a phased light curve. Convenience function for plot formats from [1]_.
+    r"""Plot a phased light curve. Convenience function for plot formats
+    from [1]_.
 
     Parameters
     ----------
@@ -612,14 +682,20 @@ def plot_phased_light_curve(
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.errorbar(np.append(times_phased, np.add(times_phased, 1.0)), np.append(fluxes, fluxes),
-                np.append(fluxes_err, fluxes_err), fmt='.k', ecolor='gray', linewidth=1)
-    ax.plot(np.append(phases, np.add(phases, 1.0)), np.append(fits_phased, fits_phased), color='blue', linewidth=2)
+    ax.errorbar(
+        np.append(times_phased, np.add(times_phased, 1.0)),
+        np.append(fluxes, fluxes),
+        np.append(fluxes_err, fluxes_err),
+        fmt='.k', ecolor='gray', linewidth=1)
+    ax.plot(
+        np.append(phases, np.add(phases, 1.0)),
+        np.append(fits_phased, fits_phased), color='blue', linewidth=2)
     ax.set_title(("Phased light curve\n" +
                   "with {num} Fourier terms fit").format(num=n_terms))
     ax.set_xlabel("Orbital phase (decimal)")
@@ -635,13 +711,15 @@ def plot_phased_light_curve(
 def refine_best_period(
         times, fluxes, fluxes_err, best_period, n_terms=6, show_plots=True,
         period_unit='seconds', flux_unit='relative'):
-    r"""Refine the best period to a higher precision from a multi-term generalized
-    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
+    r"""Refine the best period to a higher precision from a multi-term
+    generalized Lomb-Scargle periodogram. Convenience function for methods
+    from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time, e.g. seconds or days.
+        1D array of time coordinates for data. Unit is time,
+        e.g. seconds or days.
     fluxes : numpy.ndarray
         1D array of fluxes. Unit is integrated flux,
         e.g. relative flux or magnitudes.
@@ -692,23 +770,32 @@ def refine_best_period(
         omega_resolution = 2.0 * np.pi / acquisition_time
         num_omegas = 2000 # chosen to balance fast computation with small range
         anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-        sampling_precision = 0.01 # ensure sampling precision very high relative to data precision
-        range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+        # ensure sampling precision very high relative to data precision
+        sampling_precision = 0.01 
+        range_omega_halfwidth = \
+            ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+             sampling_precision)
     - Call after `calc_num_terms`.
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/fft_funda/
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/
+           fft_funda/
     
     """
-    # Calculate the multiterm periodogram and choose the best period from the maximal power.
+    # Calculate the multiterm periodogram and choose the best period
+    # from the maximal power.
     acquisition_time = max(times) - min(times)
     omega_resolution = 2.0 * np.pi / acquisition_time
     num_omegas = 2000 # chosen to balance fast computation with medium range
     anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    sampling_precision = 0.01 # ensure sampling precision very high relative to data precision
-    range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+    # ensure sampling precision very high relative to data precision
+    sampling_precision = 0.01 
+    range_omega_halfwidth = \
+      ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+       sampling_precision)
     max_period = 0.5 * acquisition_time
     min_omega = 2.0 * np.pi / max_period
     median_sampling_period = np.median(np.diff(times))
@@ -723,25 +810,31 @@ def refine_best_period(
                 num=num_omegas, endpoint=True),
             min_omega, max_omega)
     range_periods = 2.0 * np.pi / range_omegas
-    range_powers = astroML_ts.multiterm_periodogram(t=times, y=fluxes, dy=fluxes_err,
-                                                    omega=range_omegas, n_terms=n_terms)
+    range_powers = \
+        astroML_ts.multiterm_periodogram(
+            t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+            n_terms=n_terms)
     refined_omega = range_omegas[np.argmax(range_powers)]
     refined_period = 2.0 * np.pi / refined_omega
     mtf = astroML_ts.MultiTermFit(omega=refined_omega, n_terms=n_terms)
     mtf.fit(t=times, y=fluxes, dy=fluxes_err)
-    (phases, fits_phased, times_phased) = mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
+    (phases, fits_phased, times_phased) = \
+        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
     if show_plots:
-        plot_periodogram(periods=range_periods, powers=range_powers, xscale='linear', n_terms=n_terms,
-                         period_unit=period_unit, flux_unit=flux_unit, return_ax=False)
-        plot_phased_light_curve(phases=phases, fits_phased=fits_phased, times_phased=times_phased,
-                                fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
-                                flux_unit=flux_unit, return_ax=False)
+        plot_periodogram(
+            periods=range_periods, powers=range_powers, xscale='linear',
+            n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+            return_ax=False)
+        plot_phased_light_curve(
+            phases=phases, fits_phased=fits_phased, times_phased=times_phased,
+            fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
+            flux_unit=flux_unit, return_ax=False)
         print("Refined period: {per} seconds".format(per=refined_period))
     return (refined_period, phases, fits_phased, times_phased, mtf)
 
 
 def calc_flux_fits_residuals(
-        phases, fits_phased, times_phased, fluxes):
+    phases, fits_phased, times_phased, fluxes):
     r"""Calculate the fluxes and their residuals at phased times from a fit
     to a light curve.
     
@@ -769,8 +862,8 @@ def calc_flux_fits_residuals(
         1D array of `fits_phased` resampled at `times_phased`.
         numpy.shape(fluxes_fit) == numpy.shape(fluxes)
     residuals : numpy.ndarray
-        1D array of the differences between `fluxes` and `fits_phased` resampled
-        at `times_phased`:
+        1D array of the differences between `fluxes` and `fits_phased`
+        resampled at `times_phased`:
         residuals = fluxes - fits_phased_resampled
         numpy.shape(residuals) == numpy.shape(fluxes)
 
@@ -781,7 +874,7 @@ def calc_flux_fits_residuals(
 
 
 def calc_z1_z2(
-        dist):
+    dist):
     r"""Calculate a rank-based measure of Gaussianity in the core
     and tail of a distribution.
     
@@ -814,7 +907,8 @@ def calc_z1_z2(
     
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     (mu, sigma) = astroML_stats.mean_sigma(dist)
@@ -826,8 +920,8 @@ def calc_z1_z2(
 
 
 def plot_phased_histogram(
-    hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes, fluxes_err,
-    flux_unit='relative', return_ax=False):
+    hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes,
+    fluxes_err, flux_unit='relative', return_ax=False):
     r"""Plot a Bayesian blocks histogram for a phased light curve.
     Convenience function for methods from [1]_.
 
@@ -881,17 +975,23 @@ def plot_phased_histogram(
     """
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.errorbar(x=np.append(times_phased, np.add(times_phased, 1.0)), y=np.append(fluxes, fluxes),
-                yerr=np.append(fluxes_err, fluxes_err), fmt='.k', ecolor='gray')
+    ax.errorbar(
+        x=np.append(times_phased, np.add(times_phased, 1.0)),
+        y=np.append(fluxes, fluxes),
+        yerr=np.append(fluxes_err, fluxes_err),
+        fmt='.k', ecolor='gray')
     plt_hist_phases = np.append(hist_phases, np.add(hist_phases, 1.0))
     plt_hist_fluxes = np.append(hist_fluxes, hist_fluxes)
-    plt_hist_fluxes_upr = np.add(plt_hist_fluxes,
-                                 np.append(hist_fluxes_err, hist_fluxes_err))
-    plt_hist_fluxes_lwr = np.subtract(plt_hist_fluxes,
-                                      np.append(hist_fluxes_err, hist_fluxes_err))
+    plt_hist_fluxes_upr = \
+      np.add(plt_hist_fluxes, np.append(hist_fluxes_err, hist_fluxes_err))
+    plt_hist_fluxes_lwr = \
+        np.subtract(
+            plt_hist_fluxes, np.append(hist_fluxes_err, hist_fluxes_err))
     ax.step(x=plt_hist_phases, y=plt_hist_fluxes, color='blue', linewidth=2)
-    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_upr, color='blue', linewidth=3, linestyle=':')
-    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_lwr, color='blue', linewidth=3, linestyle=':')
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_upr,
+            color='blue', linewidth=3, linestyle=':')
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_lwr,
+            color='blue', linewidth=3, linestyle=':')
     ax.set_title("Phased light curve\n" +
                  "with Bayesian block histogram")
     ax.set_xlabel("Orbital phase (decimal)")
@@ -920,7 +1020,8 @@ def calc_phased_histogram(
         Unit is integrated flux, e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
-        Errors are used only for determining bin widths, not for determining flux
+        Errors are used only for determining bin widths,
+        not for determining flux
     flux_unit : {'relative'}, string, optional
         String describing flux units for labeling the plot.
         Example: flux_unit='relative' will label the y-axis
@@ -931,8 +1032,8 @@ def calc_phased_histogram(
     Returns
     -------
     hist_phases : numpy.ndarray
-        1D array of the phased times of the right edge of each Bayesian block bin.
-        Unit is same as `times_phased`.
+        1D array of the phased times of the right edge of each
+        Bayesian block bin. Unit is same as `times_phased`.
     hist_fluxes : numpy.ndarray
         1D array of the median fluxes corresponding to the Bayesian block bins
         with right edges of `hist_phases`. Unit is same as `fluxes`.
@@ -952,16 +1053,17 @@ def calc_phased_histogram(
     - Phased times for each bin are defined by the right edge since
       `matplotlib.pyplot.step` constructs plots expecting coordinates for the
       right edges of bins.
-    - Because Bayesian blocks have variable bin width, the histogram is computed
-      from three complete cycles to prevent the edges of the data domain from
-      affecting the computed bin widths.
-    - Binned fluxes are combined using the median rather than a weighted average.
-      Errors in binned flux are the rank-based standard deviation of the binned
-      fluxes (sigmaG from section 4.7.4 of [1]_).
+    - Because Bayesian blocks have variable bin width, the histogram is
+      computed from three complete cycles to prevent the edges of the
+      data domain from affecting the computed bin widths.
+    - Binned fluxes are combined using the median rather than a weighted
+      average. Errors in binned flux are the rank-based standard deviation
+      of the binned fluxes (sigmaG from section 4.7.4 of [1]_).
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     # Check input.
@@ -972,21 +1074,24 @@ def calc_phased_histogram(
     # accommodate irregular data sampling.
     tfmask_lt05 = times_phased < 0.5
     tfmask_gt05 = np.logical_not(tfmask_lt05)
-    phases_folded = np.append(times_phased[tfmask_lt05], np.subtract(1.0, times_phased[tfmask_gt05]))
+    phases_folded = np.append(
+        times_phased[tfmask_lt05], np.subtract(1.0, times_phased[tfmask_gt05]))
     phases_mirrored = np.append(phases_folded, np.subtract(1.0, phases_folded))
     fluxes_folded = np.append(fluxes[tfmask_lt05], fluxes[tfmask_gt05])
     fluxes_mirrored = np.append(fluxes_folded, fluxes_folded)
-    fluxes_err_folded = np.append(fluxes_err[tfmask_lt05], fluxes_err[tfmask_gt05])
+    fluxes_err_folded = np.append(
+        fluxes_err[tfmask_lt05], fluxes_err[tfmask_gt05])
     fluxes_err_mirrored = np.append(fluxes_err_folded, fluxes_err_folded)
-    # Append the data to itself (tesselate) 2 times for total of 3 cycles to compute
-    # histogram without edge effects.
-    # Note: astroML.density_estimation.bayesian_blocks requires input times (phases)
-    # be unique.
+    # Append the data to itself (tesselate) 2 times for total of 3 cycles
+    # to compute histogram without edge effects.
+    # Note: astroML.density_estimation.bayesian_blocks requires input times
+    # (phases) be unique.
     tess_phases = phases_mirrored
     tess_fluxes = fluxes_mirrored
     tess_fluxes_err = fluxes_err_mirrored
     for begin_phase in xrange(0, 2):
-        tess_phases = np.append(tess_phases, np.add(phases_mirrored, begin_phase + 1.0))
+        tess_phases = np.append(
+            tess_phases, np.add(phases_mirrored, begin_phase + 1.0))
         tess_fluxes = np.append(tess_fluxes, fluxes_mirrored)
         tess_fluxes_err = np.append(tess_fluxes_err, fluxes_err_mirrored)
     (tess_phases, uniq_idxs) = np.unique(ar=tess_phases, return_index=True)
@@ -994,26 +1099,29 @@ def calc_phased_histogram(
     tess_fluxes_err = tess_fluxes_err[uniq_idxs]
     # Compute edges of Bayesian blocks histogram.
     # Note: number of edges = number of bins + 1
-    tess_bin_edges = \
-        astroML_dens.bayesian_blocks(t=tess_phases, x=tess_fluxes,
-                                     sigma=tess_fluxes_err, fitness='measures')
+    tess_bin_edges = astroML_dens.bayesian_blocks(
+        t=tess_phases, x=tess_fluxes, sigma=tess_fluxes_err,
+        fitness='measures')
     # Determine the median flux and sigmaG within each Bayesian block bin.
     tess_bin_fluxes = []
     tess_bin_fluxes_err = []
     for idx_start in xrange(len(tess_bin_edges) - 1):
         bin_phase_start = tess_bin_edges[idx_start]
         bin_phase_end = tess_bin_edges[idx_start + 1]
-        tfmask_bin = np.logical_and(bin_phase_start <= tess_phases,
-                                    tess_phases <= bin_phase_end)
+        tfmask_bin = np.logical_and(
+            bin_phase_start <= tess_phases,
+            tess_phases <= bin_phase_end)
         if tfmask_bin.any():
-            (bin_flux, bin_flux_err) = astroML_stats.median_sigmaG(tess_fluxes[tfmask_bin])
+            (bin_flux, bin_flux_err) = \
+                astroML_stats.median_sigmaG(tess_fluxes[tfmask_bin])
         else:
             (bin_flux, bin_flux_err) = (np.nan, np.nan)
         tess_bin_fluxes.append(bin_flux)
         tess_bin_fluxes_err.append(bin_flux_err)
     tess_bin_fluxes = np.asarray(tess_bin_fluxes)
     tess_bin_fluxes_err = np.asarray(tess_bin_fluxes_err)
-    # Fix number of edges = number of bins. Values are for are right edge of each bin.
+    # Fix number of edges = number of bins. Values are for are right edge
+    # of each bin.
     tess_bin_edges = tess_bin_edges[1:]
     # Crop 1 complete cycle out of center of of 3-cycle histogram.
     # Plot and return histogram.
@@ -1023,8 +1131,9 @@ def calc_phased_histogram(
     hist_fluxes_err = tess_bin_fluxes_err[tfmask_hist]
     if show_plot:
         plot_phased_histogram(
-            hist_phases=hist_phases, hist_fluxes=hist_fluxes, hist_fluxes_err=hist_fluxes_err,
-            times_phased=phases_mirrored, fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
+            hist_phases=hist_phases, hist_fluxes=hist_fluxes,
+            hist_fluxes_err=hist_fluxes_err, times_phased=phases_mirrored,
+            fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
             flux_unit=flux_unit, return_ax=False)
     return (hist_phases, hist_fluxes, hist_fluxes_err)
 
@@ -1058,17 +1167,21 @@ def read_params_gianninas(fobj):
     .. [1] http://adsabs.harvard.edu/abs/2014ApJ...794...35G
     
     """
-    # Read in lines of file and use second line (line number 1, 0-indexed) to parse fields.
-    # Convert string values to floats. Split specific values that have mixed types (e.g. '1.000 Gyr').
+    # Read in lines of file and use second line (line number 1, 0-indexed)
+    # to parse fields. Convert string values to floats. Split specific values
+    # that have mixed types (e.g. '1.000 Gyr').
     lines = []
     for line in fobj:
         lines.append(line.strip())
     if len(lines) != 3:
-        warnings.warn(("File has {num_lines}. File is expected to only have 3 lines.\n" +
-                       "Example file format:\n" +
-                       "line 0: 'Name         SpT    Teff   errT  log g errg '...\n" +
-                       "line 1: '==========  ===== ======= ====== ===== ====='...\n" +
-                       "line 2: 'J1600+2721  DA6.0   8353.   126. 5.244 0.118'...").format(num_lines=len(lines)))
+        warnings.warn(
+            ("\n" +
+             "File has {num_lines}. File is expected to only have 3 lines.\n" +
+             "Example file format:\n" +
+             "line 0: 'Name         SpT    Teff   errT  log g'...\n" +
+             "line 1: '==========  ===== ======= ====== ====='...\n" +
+             "line 2: 'J1600+2721  DA6.0   8353.   126. 5.244'...").format(
+                 num_lines=len(lines)))
     dobj = collections.OrderedDict()
     for mobj in re.finditer('=+', lines[1]):
         key = lines[0][slice(*mobj.span())].strip()
@@ -1121,3 +1234,317 @@ def has_nans(obj):
         except TypeError:
             pass
     return found_nan
+
+
+# TDOO: insert emcee functions here.
+
+
+def model_geometry_from_light_curve(params, show_plots=False):
+    """Calculate geometric parameters of a spherical binary
+    model from light curve parameters.
+    
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model light curve parameters.
+        `params = \
+            (phase_orb_int, phase_orb_ext,
+             light_oc, light_ref, light_tr, sig)`.
+        Units are:
+        {phase_orb_int/ext} = phase of external/internal
+            events (tangencies) in radians
+            internal: end/begin ingress/egress
+            external: begin/end ingress/egress
+        {light, sig} = relative flux
+        See `model_flux_rel` for description of parameters.
+    show_plots : {False, True}, bool, optional
+        If False (default): Don't show plots of optimized fit for inclination.
+        If True: Show plots of optimized fit for inclination.
+    
+    Returns
+    -------
+    geoms : tuple
+        Tuple of floats representing the geometric parameters
+        of a spherical binary model from light curve values.
+        geoms = \
+            (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
+             incl_rad, radius_sep_s, radius_sep_g)
+        Units are:
+        {flux_intg_rel_s, flux_intg_rel_g} = relative integrated flux
+        {radii_ratio_lt} = radius_s / radius_g from light levels
+        {incl_rad} = orbital inclination in radians
+        {radius_sep_s, radius_sep_g} = radius in star-star separation distance
+        
+    See Also
+    --------
+    model_flux_rel
+
+    """
+    # TODO: Check input.
+    (pp1, pp2, pb0, pb2, pb4, psig) = params # prefixed with p to distinguish
+    light_ref = pb2 # Between minima.
+    light_oc = pb0 # During occultation minima.
+    light_tr = pb4 # During transit minima.
+    p0 = 0.0 # Mid-eclipse.
+    p1 = p0 - pp2 # Begin ingress.
+    p2 = p0 - pp1 # End ingress.
+    p3 = p0 + pp1 # Begin egress.
+    p4 = p0 + pp2 # End egress.
+    (flux_intg_rel_s, flux_intg_rel_g) = \
+        bss.utils.calc_fluxes_intg_rel_from_light(
+            light_oc=light_oc, light_ref=light_ref)
+    radii_ratio_lt = \
+        bss.utils.calc_radii_ratio_from_light(
+            light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    phase_orb_ext = p4
+    phase_orb_int = p3
+    incl_rad = \
+        bss.utils.calc_incl_from_radii_ratios_phase_incl(
+            radii_ratio_lt=radii_ratio_lt, phase_orb_ext=phase_orb_ext,
+            phase_orb_int=phase_orb_int, tol=1e-4, maxiter=10,
+            show_plots=show_plots)
+    if incl_rad is np.nan:
+        incl_rad = np.deg2rad(90)
+    sep_proj_ext = \
+        bss.utils.calc_sep_proj_from_incl_phase(
+            incl=incl_rad, phase_orb=phase_orb_ext)
+    sep_proj_int = \
+        bss.utils.calc_sep_proj_from_incl_phase(
+            incl=incl_rad, phase_orb=phase_orb_int)
+    (radius_sep_s, radius_sep_g) = \
+        bss.utils.calc_radii_sep_from_seps(
+            sep_proj_ext=sep_proj_ext, sep_proj_int=sep_proj_int)
+    geoms = \
+        (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
+         incl_rad, radius_sep_s, radius_sep_g)
+    return geoms
+
+
+def model_quantities_from_lc_velr_atmos(
+    lc_params, velr_s, atmos_s):
+    """Calculate physical quantities of a spherical binary system model
+    from its light curve parameters, radial velocity of the smaller primary,
+    and modeled atmospheric parameters of the smaller primary. The atmospheric
+    parameters are stellar parameters that are modeled from single-line
+    spectroscopy of the smaller primary star.
+    
+    Parameters
+    ----------
+    lc_params : tuple
+        Tuple of floats representing the model light curve parameters.
+        `lc_params = (p1, p2, b0, b2, b4, sig)`.
+        Units are:
+        {p1, p2} = decimal orbital phase
+        {b0, b2, b4, sig} = relative flux
+        See `model_flux_rel` for description of parameters.
+    velr_s : float
+        Semi-amplitude (half peak-to-peak) of radial velocity
+        of the smaller primary star. Unit is meters/second.
+    atmos_s : tuple
+        Tuple of floats representing the parameters of a stellar model
+        that was fit from single-line spectroscopy of the smaller brighter
+        primary star.
+        `atmos_s = (mass_s, radius_s, teff_s)`
+        Units are MKS:
+        {mass} = stellar mass in kg
+        {radius} = stellar radius in meters
+        {teff} = stellar effective temperature in Kelvin
+    
+    Returns
+    -------
+    quants : tuple
+        Tuple of floats representing the physical quantities
+        of a spherical binary model from geometric parameters.
+        `quants = \
+            (# Quantities for the entire binary system
+             phase0, period, incl_rad, sep, massfunc,
+             # Quantities for the smaller primary star ('_s')
+             velr_s, axis_s, mass_s, radius_s, teff_s,
+             # Quantities for the greater secondary star ('_g')
+             velr_g, axis_g, mass_g, radius_g, teff_g)`
+        Units are MKS:
+        {phase0} = time at which phase of orbit is 0 in
+            Unixtime Barycentric Coordinate Time
+        {period} = period of orbit in seconds
+        {incl_rad} = orbital inclination in radians
+        {sep} = star-star separation distance in meters
+        {massfunc} = mass function of system in kg
+            massfunc = (m2 * sin(i))**3 / (m1 + m2)**2
+            where star 1 is the smaller primary brighter star
+        {velr} = radial velocity amplitude (half peak-to-peak) in m/s
+        {axis} = semimajor axis of star's orbit in meters
+        {radius} = stellar radius in meters
+        {mass} = stellar mass in kg
+        {teff} = stellar effective temperature in Kelvin
+
+    See Also
+    --------
+    model_geometry_from_light_curve, model_flux_rel
+
+    Notes
+    -----
+    TODO: manage all data using named tuple structures
+    TODO: complete description of how parameters are used.
+    - Parameters used from light curve fit:
+        System:
+            inclination
+            period
+            relative time begin ingress (used as a check)
+            relative time end ingress (used as a check)
+            relative time begin egress (used as a check)
+            light level during occultation
+            light level during transit
+            light level outside of eclipse
+            radii ratio from light levels
+        Smaller primary:
+            radius in star-star separation distance (used as a check)
+        Greater secondary:
+            radius in star-star separation distance (used as a check)
+    - Paramters used from modeled stellar atmosphere:
+        Smaller primary:
+            radial velocity
+            mass
+            radius
+            effective temperature
+
+    """
+    # TODO: Check input.
+    # Define and compute physical quantities.
+    # For system; from light curve:
+    # define the phase, period, inclination.
+    # TODO: get phase0 and period from lc_params.
+    phase0 = np.nan
+    period = 86691.1081704
+    (p1, p2, b0, b2, b4, _) = lc_params
+    light_ref = b2 # Between minima.
+    light_oc  = b0  # During occultation minima.
+    light_tr  = b4  # During transit minima.
+    time_begin_ingress = -p2 * period
+    time_end_ingress   = -p1 * period
+    time_begin_egress  = -time_begin_ingress
+    (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
+     incl_rad, radius_sep_s, radius_sep_g) = \
+        model_geometry_from_light_curve(params=lc_params, show_plots=False)
+    # For smaller primary; from stellar model:
+    # define mass, radius, temperature.
+    (mass_s, radius_s, teff_s) = atmos_s
+    # For system; from light curve and stellar model:
+    # calculate the mass function.
+    massfunc = \
+        bss.utils.calc_mass_function_from_period_velr(
+            period=period, velr1=velr_s)
+    # For smaller primary; from light curve and radial velocity:
+    # calculate the semi-major axis.
+    axis_s = \
+        bss.utils.calc_semimaj_axis_from_period_velr_incl(
+            period=period, velr=velr_s, incl=incl_rad)
+    # For greater secondary; from light curve, radial velocity,
+    # and stellar model: calculate the mass.
+    mass_g = \
+        bss.utils.calc_mass2_from_period_velr1_incl_mass1(
+            period=period, velr1=velr_s, incl=incl_rad, mass1=mass_s)
+    # For greater secondary; from light curve, radial velocity,
+    # and stellar model: calculate the radial velocity.
+    velr_g = \
+        bss.utils.calc_velr2_from_masses_period_incl_velr1(
+            mass1=mass_s, mass2=mass_g, velr1=velr_s,
+            period=period, incl=incl_rad)
+    # For greater secondary; from light curve and stellar model:
+    # calculate the radius, teff.
+    flux_rad_ratio = \
+        bss.utils.calc_flux_rad_ratio_from_light(
+            light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    teff_ratio = \
+        bss.utils.calc_teff_ratio_from_flux_rad_ratio(
+            flux_rad_ratio=flux_rad_ratio)
+    radius_g = radius_s * (radius_sep_g / radius_sep_s),
+    teff_g = teff_s / teff_ratio
+    # For greater secondary; from light curve, radial velocity,
+    # and stellar model: calculate the semi-major axis.
+    axis_g = \
+        bss.utils.calc_semimaj_axis_from_period_velr_incl(
+            period=period, velr=velr_g, incl=incl_rad)
+    # For system; from light curve, radial velocity,
+    # and stellar model: calculate the star-star separation distance.
+    sep = \
+        bss.utils.calc_sep_from_semimaj_axes(
+            axis_1=axis_s, axis_2=axis_s)
+    # Check calculations.
+    # Check that the masses are calculated consistently.
+    assert (mass_g >= massfunc)
+    assert np.isclose(
+        mass_s / mass_g,
+        bss.utils.calc_mass_ratio_from_velrs(
+            velr_1=velr_s, velr_2=velr_g))
+    assert np.isclose(
+        mass_s + mass_g,
+        bss.utils.calc_mass_sum_from_period_velrs_incl(
+            period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad))
+    # Check that the semi-major axes are calculated consistently.
+    assert np.isclose(sep, axis_s + axis_g)
+    # Check that the radii are calculated consistently.
+    # There may be a difference if there was no self-consistent solution
+    # for inclination.
+    try:
+        assert np.isclose(
+            radii_ratio_lt,
+            radius_sep_s / radius_sep_g)
+    except AssertionError:
+        warnings.warn(
+            ("\n" +
+             "Radii ratios do not agree. The solution for inclination\n" +
+             "from the light curve may not be self-consistent:\n" +
+             "    radii_ratio_lt              = {rrl}\n" +
+             "    radius_sep_s / radius_sep_g = {rrs}").format(
+             rrl=radii_ratio_lt, rrs=radius_sep_s/radius_sep_g))
+    try:
+        rtol=1e-1
+        radius_s_from_velrs_times = \
+            bss.utils.calc_radius_from_velrs_times(
+                velr_1=velr_s, velr_2=velr_g,
+                time_1=time_begin_ingress, time_2=time_end_ingress)
+        radius_s_from_radius_sep = \
+            bss.utils.calc_radius_from_radius_sep(
+                radius_sep=radius_sep_s, sep=sep)
+        radius_g_from_velrs_times = \
+            bss.utils.calc_radius_from_velrs_times(
+                velr_1=velr_s, velr_2=velr_g,
+                time_1=time_begin_ingress, time_2=time_begin_egress)
+        radius_g_from_radius_sep = \
+            bss.utils.calc_radius_from_radius_sep(
+                radius_sep=radius_sep_g, sep=sep)
+        assert np.isclose(
+            radius_s, radius_s_from_velrs_times, rtol=rtol)
+        assert np.isclose(
+            radius_s, radius_s_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_s_from_velrs_times, radius_s_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_g, radius_g_from_velrs_times, rtol=rtol)
+        assert np.isclose(
+            radius_g, radius_g_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_g_from_velrs_times, radius_g_from_radius_sep, rtol=rtol)
+    except AssertionError:
+        warnings.warn(
+            ("\n" +
+             "Radii computed from the following methods do not agree\n" +
+             "to within rtol={rtol}. Units are meters:\n" +
+             "    radius_s                  = {rs:.2e}\n" +
+             "    radius_s_from_velrs_times = {rs_vt:.2e}\n" +
+             "    radius_s_from_radius_sep  = {rs_rs:.2e}\n" +
+             "    radius_g                  = {rg:.2e}\n" +
+             "    radius_g_from_velrg_times = {rg_vt:.2e}\n" +
+             "    radius_g_from_radius_sep  = {rg_rs:.2e}").format(
+                 rtol=rtol,
+                 rs=radius_s,
+                 rs_vt=radius_s_from_velrs_times,
+                 rs_rs=radius_s_from_radius_sep,
+                 rg=radius_g,
+                 rg_vt=radius_g_from_velrs_times,
+                 rg_rs=radius_g_from_radius_sep))
+    quants = \
+        (phase0, period, incl_rad, sep, massfunc,
+         velr_s, axis_s, mass_s, radius_s, teff_s,
+         velr_g, axis_g, mass_g, radius_g, teff_g)
+    return quants
