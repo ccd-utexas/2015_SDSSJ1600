@@ -1134,10 +1134,15 @@ def model_geometry_from_light_curve(params, show_plots=False):
     ----------
     params : tuple
         Tuple of floats representing the model light curve parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
+        `params = \
+            (phase_orb_int, phase_orb_ext,
+             light_oc, light_ref, light_tr, sig)`.
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
+        {phase_orb_int/ext} = phase of external/internal
+            events (tangencies) in radians
+            internal: end/begin ingress/egress
+            external: begin/end ingress/egress
+        {light, sig} = relative flux
         See `model_flux_rel` for description of parameters.
     show_plots : {False, True}, bool, optional
         If False (default): Don't show plots of optimized fit for inclination.
@@ -1290,10 +1295,10 @@ def model_quantities_from_lc_velr_atmos(
     # TODO: get phase0 and period from lc_params.
     phase0 = np.nan
     period = 86691.1081704
-    (p1, p2, b0, b2, b4, sig) = lc_params
+    (p1, p2, b0, b2, b4, _) = lc_params
     light_ref = b2 # Between minima.
-    light_oc = b0  # During occultation minima.
-    light_tr = b4  # During transit minima.
+    light_oc  = b0  # During occultation minima.
+    light_tr  = b4  # During transit minima.
     time_begin_ingress = -p2 * period
     time_end_ingress   = -p1 * period
     time_begin_egress  = -time_begin_ingress
@@ -1367,8 +1372,8 @@ def model_quantities_from_lc_velr_atmos(
     except AssertionError:
         warnings.warn(
             ("\n" +
-             "Radii ratio do not agree. The solution for inclination\n" +
-             "may not be self-consistent:\n" +
+             "Radii ratios do not agree. The solution for inclination\n" +
+             "from the light curve may not be self-consistent:\n" +
              "    radii_ratio_lt              = {rrl}\n" +
              "    radius_sep_s / radius_sep_g = {rrs}").format(
              rrl=radii_ratio_lt, rrs=radius_sep_s/radius_sep_g))
@@ -1405,12 +1410,12 @@ def model_quantities_from_lc_velr_atmos(
             ("\n" +
              "Radii computed from the following methods do not agree\n" +
              "to within rtol={rtol}. Units are meters:\n" +
-             "    radius_s = {rs}\n" +
-             "    radius_s_from_velrs_times = {rs_vt}\n" +
-             "    radius_s_from_radius_sep = {rs_rs}\n" +
-             "    radius_g = {rg}\n" +
-             "    radius_g_from_velrg_times = {rg_vt}\n" +
-             "    radius_g_from_radius_sep = {rg_rs}").format(
+             "    radius_s                  = {rs:.2e}\n" +
+             "    radius_s_from_velrs_times = {rs_vt:.2e}\n" +
+             "    radius_s_from_radius_sep  = {rs_rs:.2e}\n" +
+             "    radius_g                  = {rg:.2e}\n" +
+             "    radius_g_from_velrg_times = {rg_vt:.2e}\n" +
+             "    radius_g_from_radius_sep  = {rg_rs:.2e}").format(
                  rtol=rtol,
                  rs=radius_s,
                  rs_vt=radius_s_from_velrs_times,

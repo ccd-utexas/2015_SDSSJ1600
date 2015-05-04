@@ -238,10 +238,30 @@ def test_has_nans(
 
 
 # Test special cases for test_has_nans
-test_has_nans(obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf', 2.0)]}},
-              found_nan=False)
+test_has_nans(
+    obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf', 2.0)]}},
+    found_nan=False)
 
 
 # TODO: test_model_geometry_from_light_curve using binstarsolver example.
+def test_model_geometry_from_light_curve(
+    params=(np.deg2rad(3.5), np.deg2rad(12.3), 0.898, 1.0, 0.739, 0.001),
+    show_plots=False,
+    ref_geoms=(0.102, 0.898, 0.539115831462, np.deg2rad(88.8888888889),
+               0.0749139580237, 0.138957275514)):
+    r"""Pytest style test for code/utils.py:
+    model_geometry_from_light_curve
+
+    Notes
+    -----
+    - Default example if from Ch 7, Budding, 2009. Example has
+    primary minimum corresponding to transit, not occultation. 
+
+    """
+    test_geoms = \
+        code.utils.model_geometry_from_light_curve(
+            params=params, show_plots=show_plots)
+    assert np.all(np.isclose(ref_geoms, test_geoms))
+    return None
 
 # TODO: test_model_quantities_from_light_curve_model
