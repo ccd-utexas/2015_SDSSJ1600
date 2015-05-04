@@ -14,6 +14,7 @@ import warnings
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
+import binstarsolver as bss
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -635,7 +636,8 @@ def calc_num_terms(
 def plot_phased_light_curve(
         phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
         flux_unit='relative', return_ax=False):
-    r"""Plot a phased light curve. Convenience function for plot formats from [1]_.
+    r"""Plot a phased light curve. Convenience function for plot formats
+    from [1]_.
 
     Parameters
     ----------
@@ -680,14 +682,20 @@ def plot_phased_light_curve(
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.errorbar(np.append(times_phased, np.add(times_phased, 1.0)), np.append(fluxes, fluxes),
-                np.append(fluxes_err, fluxes_err), fmt='.k', ecolor='gray', linewidth=1)
-    ax.plot(np.append(phases, np.add(phases, 1.0)), np.append(fits_phased, fits_phased), color='blue', linewidth=2)
+    ax.errorbar(
+        np.append(times_phased, np.add(times_phased, 1.0)),
+        np.append(fluxes, fluxes),
+        np.append(fluxes_err, fluxes_err),
+        fmt='.k', ecolor='gray', linewidth=1)
+    ax.plot(
+        np.append(phases, np.add(phases, 1.0)),
+        np.append(fits_phased, fits_phased), color='blue', linewidth=2)
     ax.set_title(("Phased light curve\n" +
                   "with {num} Fourier terms fit").format(num=n_terms))
     ax.set_xlabel("Orbital phase (decimal)")
@@ -703,13 +711,15 @@ def plot_phased_light_curve(
 def refine_best_period(
         times, fluxes, fluxes_err, best_period, n_terms=6, show_plots=True,
         period_unit='seconds', flux_unit='relative'):
-    r"""Refine the best period to a higher precision from a multi-term generalized
-    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
+    r"""Refine the best period to a higher precision from a multi-term
+    generalized Lomb-Scargle periodogram. Convenience function for methods
+    from [1]_.
        
     Parameters
     ----------
     times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time, e.g. seconds or days.
+        1D array of time coordinates for data. Unit is time,
+        e.g. seconds or days.
     fluxes : numpy.ndarray
         1D array of fluxes. Unit is integrated flux,
         e.g. relative flux or magnitudes.
@@ -760,23 +770,32 @@ def refine_best_period(
         omega_resolution = 2.0 * np.pi / acquisition_time
         num_omegas = 2000 # chosen to balance fast computation with small range
         anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-        sampling_precision = 0.01 # ensure sampling precision very high relative to data precision
-        range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+        # ensure sampling precision very high relative to data precision
+        sampling_precision = 0.01 
+        range_omega_halfwidth = \
+            ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+             sampling_precision)
     - Call after `calc_num_terms`.
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/fft_funda/
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/
+           fft_funda/
     
     """
-    # Calculate the multiterm periodogram and choose the best period from the maximal power.
+    # Calculate the multiterm periodogram and choose the best period
+    # from the maximal power.
     acquisition_time = max(times) - min(times)
     omega_resolution = 2.0 * np.pi / acquisition_time
     num_omegas = 2000 # chosen to balance fast computation with medium range
     anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    sampling_precision = 0.01 # ensure sampling precision very high relative to data precision
-    range_omega_halfwidth = (num_omegas/2.0) * omega_resolution * anti_aliasing * sampling_precision
+    # ensure sampling precision very high relative to data precision
+    sampling_precision = 0.01 
+    range_omega_halfwidth = \
+      ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+       sampling_precision)
     max_period = 0.5 * acquisition_time
     min_omega = 2.0 * np.pi / max_period
     median_sampling_period = np.median(np.diff(times))
@@ -791,25 +810,31 @@ def refine_best_period(
                 num=num_omegas, endpoint=True),
             min_omega, max_omega)
     range_periods = 2.0 * np.pi / range_omegas
-    range_powers = astroML_ts.multiterm_periodogram(t=times, y=fluxes, dy=fluxes_err,
-                                                    omega=range_omegas, n_terms=n_terms)
+    range_powers = \
+        astroML_ts.multiterm_periodogram(
+            t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+            n_terms=n_terms)
     refined_omega = range_omegas[np.argmax(range_powers)]
     refined_period = 2.0 * np.pi / refined_omega
     mtf = astroML_ts.MultiTermFit(omega=refined_omega, n_terms=n_terms)
     mtf.fit(t=times, y=fluxes, dy=fluxes_err)
-    (phases, fits_phased, times_phased) = mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
+    (phases, fits_phased, times_phased) = \
+        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
     if show_plots:
-        plot_periodogram(periods=range_periods, powers=range_powers, xscale='linear', n_terms=n_terms,
-                         period_unit=period_unit, flux_unit=flux_unit, return_ax=False)
-        plot_phased_light_curve(phases=phases, fits_phased=fits_phased, times_phased=times_phased,
-                                fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
-                                flux_unit=flux_unit, return_ax=False)
+        plot_periodogram(
+            periods=range_periods, powers=range_powers, xscale='linear',
+            n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+            return_ax=False)
+        plot_phased_light_curve(
+            phases=phases, fits_phased=fits_phased, times_phased=times_phased,
+            fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
+            flux_unit=flux_unit, return_ax=False)
         print("Refined period: {per} seconds".format(per=refined_period))
     return (refined_period, phases, fits_phased, times_phased, mtf)
 
 
 def calc_flux_fits_residuals(
-        phases, fits_phased, times_phased, fluxes):
+    phases, fits_phased, times_phased, fluxes):
     r"""Calculate the fluxes and their residuals at phased times from a fit
     to a light curve.
     
@@ -837,8 +862,8 @@ def calc_flux_fits_residuals(
         1D array of `fits_phased` resampled at `times_phased`.
         numpy.shape(fluxes_fit) == numpy.shape(fluxes)
     residuals : numpy.ndarray
-        1D array of the differences between `fluxes` and `fits_phased` resampled
-        at `times_phased`:
+        1D array of the differences between `fluxes` and `fits_phased`
+        resampled at `times_phased`:
         residuals = fluxes - fits_phased_resampled
         numpy.shape(residuals) == numpy.shape(fluxes)
 
@@ -849,7 +874,7 @@ def calc_flux_fits_residuals(
 
 
 def calc_z1_z2(
-        dist):
+    dist):
     r"""Calculate a rank-based measure of Gaussianity in the core
     and tail of a distribution.
     
@@ -882,7 +907,8 @@ def calc_z1_z2(
     
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     (mu, sigma) = astroML_stats.mean_sigma(dist)
@@ -894,8 +920,8 @@ def calc_z1_z2(
 
 
 def plot_phased_histogram(
-    hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes, fluxes_err,
-    flux_unit='relative', return_ax=False):
+    hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes,
+    fluxes_err, flux_unit='relative', return_ax=False):
     r"""Plot a Bayesian blocks histogram for a phased light curve.
     Convenience function for methods from [1]_.
 
@@ -949,17 +975,23 @@ def plot_phased_histogram(
     """
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.errorbar(x=np.append(times_phased, np.add(times_phased, 1.0)), y=np.append(fluxes, fluxes),
-                yerr=np.append(fluxes_err, fluxes_err), fmt='.k', ecolor='gray')
+    ax.errorbar(
+        x=np.append(times_phased, np.add(times_phased, 1.0)),
+        y=np.append(fluxes, fluxes),
+        yerr=np.append(fluxes_err, fluxes_err),
+        fmt='.k', ecolor='gray')
     plt_hist_phases = np.append(hist_phases, np.add(hist_phases, 1.0))
     plt_hist_fluxes = np.append(hist_fluxes, hist_fluxes)
-    plt_hist_fluxes_upr = np.add(plt_hist_fluxes,
-                                 np.append(hist_fluxes_err, hist_fluxes_err))
-    plt_hist_fluxes_lwr = np.subtract(plt_hist_fluxes,
-                                      np.append(hist_fluxes_err, hist_fluxes_err))
+    plt_hist_fluxes_upr = \
+      np.add(plt_hist_fluxes, np.append(hist_fluxes_err, hist_fluxes_err))
+    plt_hist_fluxes_lwr = \
+        np.subtract(
+            plt_hist_fluxes, np.append(hist_fluxes_err, hist_fluxes_err))
     ax.step(x=plt_hist_phases, y=plt_hist_fluxes, color='blue', linewidth=2)
-    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_upr, color='blue', linewidth=3, linestyle=':')
-    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_lwr, color='blue', linewidth=3, linestyle=':')
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_upr,
+            color='blue', linewidth=3, linestyle=':')
+    ax.step(x=plt_hist_phases, y=plt_hist_fluxes_lwr,
+            color='blue', linewidth=3, linestyle=':')
     ax.set_title("Phased light curve\n" +
                  "with Bayesian block histogram")
     ax.set_xlabel("Orbital phase (decimal)")
@@ -988,7 +1020,8 @@ def calc_phased_histogram(
         Unit is integrated flux, e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
-        Errors are used only for determining bin widths, not for determining flux
+        Errors are used only for determining bin widths,
+        not for determining flux
     flux_unit : {'relative'}, string, optional
         String describing flux units for labeling the plot.
         Example: flux_unit='relative' will label the y-axis
@@ -999,8 +1032,8 @@ def calc_phased_histogram(
     Returns
     -------
     hist_phases : numpy.ndarray
-        1D array of the phased times of the right edge of each Bayesian block bin.
-        Unit is same as `times_phased`.
+        1D array of the phased times of the right edge of each
+        Bayesian block bin. Unit is same as `times_phased`.
     hist_fluxes : numpy.ndarray
         1D array of the median fluxes corresponding to the Bayesian block bins
         with right edges of `hist_phases`. Unit is same as `fluxes`.
@@ -1020,16 +1053,17 @@ def calc_phased_histogram(
     - Phased times for each bin are defined by the right edge since
       `matplotlib.pyplot.step` constructs plots expecting coordinates for the
       right edges of bins.
-    - Because Bayesian blocks have variable bin width, the histogram is computed
-      from three complete cycles to prevent the edges of the data domain from
-      affecting the computed bin widths.
-    - Binned fluxes are combined using the median rather than a weighted average.
-      Errors in binned flux are the rank-based standard deviation of the binned
-      fluxes (sigmaG from section 4.7.4 of [1]_).
+    - Because Bayesian blocks have variable bin width, the histogram is
+      computed from three complete cycles to prevent the edges of the
+      data domain from affecting the computed bin widths.
+    - Binned fluxes are combined using the median rather than a weighted
+      average. Errors in binned flux are the rank-based standard deviation
+      of the binned fluxes (sigmaG from section 4.7.4 of [1]_).
 
     References
     ----------
-    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
     
     """
     # Check input.
@@ -1040,21 +1074,24 @@ def calc_phased_histogram(
     # accommodate irregular data sampling.
     tfmask_lt05 = times_phased < 0.5
     tfmask_gt05 = np.logical_not(tfmask_lt05)
-    phases_folded = np.append(times_phased[tfmask_lt05], np.subtract(1.0, times_phased[tfmask_gt05]))
+    phases_folded = np.append(
+        times_phased[tfmask_lt05], np.subtract(1.0, times_phased[tfmask_gt05]))
     phases_mirrored = np.append(phases_folded, np.subtract(1.0, phases_folded))
     fluxes_folded = np.append(fluxes[tfmask_lt05], fluxes[tfmask_gt05])
     fluxes_mirrored = np.append(fluxes_folded, fluxes_folded)
-    fluxes_err_folded = np.append(fluxes_err[tfmask_lt05], fluxes_err[tfmask_gt05])
+    fluxes_err_folded = np.append(
+        fluxes_err[tfmask_lt05], fluxes_err[tfmask_gt05])
     fluxes_err_mirrored = np.append(fluxes_err_folded, fluxes_err_folded)
-    # Append the data to itself (tesselate) 2 times for total of 3 cycles to compute
-    # histogram without edge effects.
-    # Note: astroML.density_estimation.bayesian_blocks requires input times (phases)
-    # be unique.
+    # Append the data to itself (tesselate) 2 times for total of 3 cycles
+    # to compute histogram without edge effects.
+    # Note: astroML.density_estimation.bayesian_blocks requires input times
+    # (phases) be unique.
     tess_phases = phases_mirrored
     tess_fluxes = fluxes_mirrored
     tess_fluxes_err = fluxes_err_mirrored
     for begin_phase in xrange(0, 2):
-        tess_phases = np.append(tess_phases, np.add(phases_mirrored, begin_phase + 1.0))
+        tess_phases = np.append(
+            tess_phases, np.add(phases_mirrored, begin_phase + 1.0))
         tess_fluxes = np.append(tess_fluxes, fluxes_mirrored)
         tess_fluxes_err = np.append(tess_fluxes_err, fluxes_err_mirrored)
     (tess_phases, uniq_idxs) = np.unique(ar=tess_phases, return_index=True)
@@ -1062,26 +1099,29 @@ def calc_phased_histogram(
     tess_fluxes_err = tess_fluxes_err[uniq_idxs]
     # Compute edges of Bayesian blocks histogram.
     # Note: number of edges = number of bins + 1
-    tess_bin_edges = \
-        astroML_dens.bayesian_blocks(t=tess_phases, x=tess_fluxes,
-                                     sigma=tess_fluxes_err, fitness='measures')
+    tess_bin_edges = astroML_dens.bayesian_blocks(
+        t=tess_phases, x=tess_fluxes, sigma=tess_fluxes_err,
+        fitness='measures')
     # Determine the median flux and sigmaG within each Bayesian block bin.
     tess_bin_fluxes = []
     tess_bin_fluxes_err = []
     for idx_start in xrange(len(tess_bin_edges) - 1):
         bin_phase_start = tess_bin_edges[idx_start]
         bin_phase_end = tess_bin_edges[idx_start + 1]
-        tfmask_bin = np.logical_and(bin_phase_start <= tess_phases,
-                                    tess_phases <= bin_phase_end)
+        tfmask_bin = np.logical_and(
+            bin_phase_start <= tess_phases,
+            tess_phases <= bin_phase_end)
         if tfmask_bin.any():
-            (bin_flux, bin_flux_err) = astroML_stats.median_sigmaG(tess_fluxes[tfmask_bin])
+            (bin_flux, bin_flux_err) = \
+                astroML_stats.median_sigmaG(tess_fluxes[tfmask_bin])
         else:
             (bin_flux, bin_flux_err) = (np.nan, np.nan)
         tess_bin_fluxes.append(bin_flux)
         tess_bin_fluxes_err.append(bin_flux_err)
     tess_bin_fluxes = np.asarray(tess_bin_fluxes)
     tess_bin_fluxes_err = np.asarray(tess_bin_fluxes_err)
-    # Fix number of edges = number of bins. Values are for are right edge of each bin.
+    # Fix number of edges = number of bins. Values are for are right edge
+    # of each bin.
     tess_bin_edges = tess_bin_edges[1:]
     # Crop 1 complete cycle out of center of of 3-cycle histogram.
     # Plot and return histogram.
@@ -1091,8 +1131,9 @@ def calc_phased_histogram(
     hist_fluxes_err = tess_bin_fluxes_err[tfmask_hist]
     if show_plot:
         plot_phased_histogram(
-            hist_phases=hist_phases, hist_fluxes=hist_fluxes, hist_fluxes_err=hist_fluxes_err,
-            times_phased=phases_mirrored, fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
+            hist_phases=hist_phases, hist_fluxes=hist_fluxes,
+            hist_fluxes_err=hist_fluxes_err, times_phased=phases_mirrored,
+            fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
             flux_unit=flux_unit, return_ax=False)
     return (hist_phases, hist_fluxes, hist_fluxes_err)
 
@@ -1126,17 +1167,21 @@ def read_params_gianninas(fobj):
     .. [1] http://adsabs.harvard.edu/abs/2014ApJ...794...35G
     
     """
-    # Read in lines of file and use second line (line number 1, 0-indexed) to parse fields.
-    # Convert string values to floats. Split specific values that have mixed types (e.g. '1.000 Gyr').
+    # Read in lines of file and use second line (line number 1, 0-indexed)
+    # to parse fields. Convert string values to floats. Split specific values
+    # that have mixed types (e.g. '1.000 Gyr').
     lines = []
     for line in fobj:
         lines.append(line.strip())
     if len(lines) != 3:
-        warnings.warn(("File has {num_lines}. File is expected to only have 3 lines.\n" +
-                       "Example file format:\n" +
-                       "line 0: 'Name         SpT    Teff   errT  log g errg '...\n" +
-                       "line 1: '==========  ===== ======= ====== ===== ====='...\n" +
-                       "line 2: 'J1600+2721  DA6.0   8353.   126. 5.244 0.118'...").format(num_lines=len(lines)))
+        warnings.warn(
+            ("\n" +
+             "File has {num_lines}. File is expected to only have 3 lines.\n" +
+             "Example file format:\n" +
+             "line 0: 'Name         SpT    Teff   errT  log g'...\n" +
+             "line 1: '==========  ===== ======= ====== ====='...\n" +
+             "line 2: 'J1600+2721  DA6.0   8353.   126. 5.244'...").format(
+                 num_lines=len(lines)))
     dobj = collections.OrderedDict()
     for mobj in re.finditer('=+', lines[1]):
         key = lines[0][slice(*mobj.span())].strip()
@@ -1256,20 +1301,27 @@ def model_geometry_from_light_curve(params, show_plots=False):
     incl_rad = \
         bss.utils.calc_incl_from_radii_ratios_phase_incl(
             radii_ratio_lt=radii_ratio_lt, phase_orb_ext=phase_orb_ext,
-            phase_orb_int=phase_orb_int, tol=1e-4, maxiter=10, show_plots=show_plots)
+            phase_orb_int=phase_orb_int, tol=1e-4, maxiter=10,
+            show_plots=show_plots)
     if incl_rad is np.nan:
         incl_rad = np.deg2rad(90)
-    sep_proj_ext = bss.utils.calc_sep_proj_from_incl_phase(incl=incl_rad, phase_orb=phase_orb_ext)
-    sep_proj_int = bss.utils.calc_sep_proj_from_incl_phase(incl=incl_rad, phase_orb=phase_orb_int)
+    sep_proj_ext = \
+        bss.utils.calc_sep_proj_from_incl_phase(
+            incl=incl_rad, phase_orb=phase_orb_ext)
+    sep_proj_int = \
+        bss.utils.calc_sep_proj_from_incl_phase(
+            incl=incl_rad, phase_orb=phase_orb_int)
     (radius_sep_s, radius_sep_g) = \
         bss.utils.calc_radii_sep_from_seps(
             sep_proj_ext=sep_proj_ext, sep_proj_int=sep_proj_int)
-    geoms = (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt, incl_rad, radius_sep_s, radius_sep_g)
+    geoms = \
+        (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
+         incl_rad, radius_sep_s, radius_sep_g)
     return geoms
 
 
 def model_quantities_from_lc_velr_atmos(
-    lc_params, velr_s, atmos_s:
+    lc_params, velr_s, atmos_s):
     """Calculate physical quantities of a spherical binary system model
     from its light curve parameters, radial velocity of the smaller primary,
     and modeled atmospheric parameters of the smaller primary. The atmospheric
@@ -1423,13 +1475,13 @@ def model_quantities_from_lc_velr_atmos(
     assert np.isclose(
         mass_s / mass_g,
         bss.utils.calc_mass_ratio_from_velrs(
-            velr_1=velr_s, velr_2=.velr_g)
+            velr_1=velr_s, velr_2=velr_g))
     assert np.isclose(
         mass_s + mass_g,
         bss.utils.calc_mass_sum_from_period_velrs_incl(
             period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad))
     # Check that the semi-major axes are calculated consistently.
-    assert np.isclose(sep, axis_s + axis_g))
+    assert np.isclose(sep, axis_s + axis_g)
     # Check that the radii are calculated consistently.
     # There may be a difference if there was no self-consistent solution
     # for inclination.
