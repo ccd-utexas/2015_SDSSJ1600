@@ -1253,10 +1253,12 @@ def model_geometry_from_light_curve(params, show_plots=False):
         Units are:
         {phase_orb_int/ext} = phase of external/internal
             events (tangencies) in radians
-            internal: end/begin ingress/egress
-            external: begin/end ingress/egress
-        {light, sig} = relative flux
-        See `model_flux_rel` for description of parameters.
+            int: internal tangencies, end/begin ingress/egress
+            ext: external tangencies, begin/end ingress/egress
+        {light_oc/ref/tr, sig} = relative flux
+            oc:  occulatation event
+            ref: between-eclipse reference light level
+            tr:  transit event
     show_plots : {False, True}, bool, optional
         If False (default): Don't show plots of optimized fit for inclination.
         If True: Show plots of optimized fit for inclination.
@@ -1266,6 +1268,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
     geoms : tuple
         Tuple of floats representing the geometric parameters
         of a spherical binary model from light curve values.
+        _s/_g denotes smaller/greater-radius star
         geoms = \
             (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
              incl_rad, radius_sep_s, radius_sep_g)
@@ -1277,27 +1280,29 @@ def model_geometry_from_light_curve(params, show_plots=False):
         
     See Also
     --------
-    model_flux_rel
+    model_flux_rel, model_quantities_from_lc_velr_stellar
 
+    Notes
+    -----
+    - Eclipse light levels are referred to by transit or occultaton events
+      of the smaller-radius star. Occultation events usually coincide with
+      the deepest eclipses, i.e. the primary minima, but they do not
+      necessarily. For an example, see [1]_.
+
+    References
+    ----------
+    .. [1] https://github.com/ccd-utexas/binstarsolver/wiki/Supported_examples
+    
     """
     # TODO: Check input.
-    (pp1, pp2, pb0, pb2, pb4, psig) = params # prefixed with p to distinguish
-    light_ref = pb2 # Between minima.
-    light_oc = pb0 # During occultation minima.
-    light_tr = pb4 # During transit minima.
-    p0 = 0.0 # Mid-eclipse.
-    p1 = p0 - pp2 # Begin ingress.
-    p2 = p0 - pp1 # End ingress.
-    p3 = p0 + pp1 # Begin egress.
-    p4 = p0 + pp2 # End egress.
+    (phase_orb_int, phase_orb_ext,
+     light_oc, light_ref, light_tr, sig) = params
     (flux_intg_rel_s, flux_intg_rel_g) = \
         bss.utils.calc_fluxes_intg_rel_from_light(
             light_oc=light_oc, light_ref=light_ref)
     radii_ratio_lt = \
         bss.utils.calc_radii_ratio_from_light(
             light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
-    phase_orb_ext = p4
-    phase_orb_int = p3
     incl_rad = \
         bss.utils.calc_incl_from_radii_ratios_phase_incl(
             radii_ratio_lt=radii_ratio_lt, phase_orb_ext=phase_orb_ext,
@@ -1320,31 +1325,37 @@ def model_geometry_from_light_curve(params, show_plots=False):
     return geoms
 
 
-def model_quantities_from_lc_velr_atmos(
-    lc_params, velr_s, atmos_s):
+def model_quantities_from_lc_velr_stellar(
+    lc_params, velr_b, stellar_b):
     """Calculate physical quantities of a spherical binary system model
-    from its light curve parameters, radial velocity of the smaller primary,
-    and modeled atmospheric parameters of the smaller primary. The atmospheric
-    parameters are stellar parameters that are modeled from single-line
-    spectroscopy of the smaller primary star.
+    from its light curve parameters, radial velocity of the brighter star,
+    and a stellar model of the brighter star modeled from a spectrum.
+    The system is assumed to be an eclipsing single-line spetroscopic binary.
     
     Parameters
     ----------
     lc_params : tuple
         Tuple of floats representing the model light curve parameters.
-        `lc_params = (p1, p2, b0, b2, b4, sig)`.
+        `params = \
+            (phase_orb_int, phase_orb_ext,
+             light_oc, light_ref, light_tr, sig)`.
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
-        See `model_flux_rel` for description of parameters.
-    velr_s : float
+        {phase_orb_int/ext} = phase of external/internal
+            events (tangencies) in radians
+            int: internal tangencies, end/begin ingress/egress
+            ext: external tangencies, begin/end ingress/egress
+        {light_oc/ref/tr, sig} = relative flux
+            oc:  occulatation event
+            ref: between-eclipse reference light level
+            tr:  transit event
+    velr_b : float
         Semi-amplitude (half peak-to-peak) of radial velocity
-        of the smaller primary star. Unit is meters/second.
-    atmos_s : tuple
+        of the brighter star. Unit is meters/second.
+    stellar_b : tuple
         Tuple of floats representing the parameters of a stellar model
-        that was fit from single-line spectroscopy of the smaller brighter
-        primary star.
-        `atmos_s = (mass_s, radius_s, teff_s)`
+        that was fit to the brighter star from single-line spectroscopy
+        of the system.
+        `stellar_b = (mass_b, radius_b, teff_b)`
         Units are MKS:
         {mass} = stellar mass in kg
         {radius} = stellar radius in meters
@@ -1383,7 +1394,13 @@ def model_quantities_from_lc_velr_atmos(
 
     Notes
     -----
-    TODO: manage all data using named tuple structures
+    - Eclipse light levels are referred to by transit or occultaton events
+      of the smaller-radius star. Occultation events usually coincide with
+      the deepest eclipses, i.e. the primary minima, but they do not
+      necessarily. For an examples, see [1]_.
+    - The method from [2]_ is used. and define the primary to be the star
+      with the smallest radius. The occultation of this star may or may
+      not be the deepest eclipse, i.e. the primary eclipse.
     TODO: complete description of how parameters are used.
     - Parameters used from light curve fit:
         System:
@@ -1407,6 +1424,11 @@ def model_quantities_from_lc_velr_atmos(
             radius
             effective temperature
 
+    References
+    ----------
+    .. [1] https://github.com/ccd-utexas/binstarsolver/wiki/Supported_examples
+    .. [2] Budding, 2007, "Introduction to Astronomical Photometry"
+
     """
     # TODO: Check input.
     # Define and compute physical quantities.
@@ -1415,19 +1437,30 @@ def model_quantities_from_lc_velr_atmos(
     # TODO: get phase0 and period from lc_params.
     phase0 = np.nan
     period = 86691.1081704
-    (p1, p2, b0, b2, b4, _) = lc_params
-    light_ref = b2 # Between minima.
-    light_oc  = b0  # During occultation minima.
-    light_tr  = b4  # During transit minima.
-    time_begin_ingress = -p2 * period
-    time_end_ingress   = -p1 * period
+    (phase_orb_int, phase_orb_ext,
+     light_oc, light_ref, light_tr, sig) = lc_params
+    time_begin_ingress = -phase_orb_ext * period
+    time_end_ingress   = -phase_orb_int * period
     time_begin_egress  = -time_begin_ingress
     (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
      incl_rad, radius_sep_s, radius_sep_g) = \
         model_geometry_from_light_curve(params=lc_params, show_plots=False)
-    # For smaller primary; from stellar model:
+    # If smaller-radius star is brighter than the greater-radius star,
+    # then the parameters from the steller model are for the
+    # smaller-radius star, i.e. the smaller-radius star is the primary star and
+    # the primary eclipses occur when the smaller-radius star is occulted.
+    # Otherwise, the greater-radius star is the primary star (less common).
+    # For primary; from radial velocity:
+    # define radial velocity.
+    # For primary; from stellar model:
     # define mass, radius, temperature.
-    (mass_s, radius_s, teff_s) = atmos_s
+    if flux_intg_rel_s >= flux_intg_rel_g:
+        smaller_is_brighter = True
+    else:
+        smaller_is_brighter = False
+    velr_pri = velr_b
+    (mass_pri, radius_pri, teff_pri) = stellar_b
+
     # For system; from light curve and stellar model:
     # calculate the mass function.
     massfunc = \

@@ -268,7 +268,6 @@ test_has_nans(
     found_nan=False)
 
 
-# TODO: test_model_geometry_from_light_curve using binstarsolver example.
 def test_model_geometry_from_light_curve(
     params=(np.deg2rad(3.5), np.deg2rad(12.3), 0.898, 1.0, 0.739, 0.001),
     show_plots=False,
