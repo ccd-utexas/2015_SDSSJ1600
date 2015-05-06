@@ -1509,6 +1509,7 @@ def model_quantities_from_lc_velr_stellar(
     #         Calculate the radius, effective temperature.
     # NOTE: Ratios below are quantities of
     # smaller-radius star / greater-radius star
+    radius_ratio_sep = radius_sep_s / radius_sep_g
     flux_rad_ratio = \
         bss.utils.calc_flux_rad_ratio_from_light(
             light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
@@ -1516,10 +1517,10 @@ def model_quantities_from_lc_velr_stellar(
         bss.utils.calc_teff_ratio_from_flux_rad_ratio(
             flux_rad_ratio=flux_rad_ratio)
     if smaller_is_brighter:
-        radius_g = radius_s * (radius_sep_g / radius_sep_s),
+        radius_g = radius_s / radius_ratio_sep
         teff_g = teff_s / teff_ratio
     else:
-        radius_s = radius_g * (radius_sep_s / radius_sep_g),
+        radius_s = radius_g * radius_ratio_sep
         teff_s = teff_g * teff_ratio
     ########################################
     # Check calculations and return.
@@ -1538,11 +1539,8 @@ def model_quantities_from_lc_velr_stellar(
     # Check that the radii are calculated consistently.
     # There may be a difference if there was no self-consistent solution
     # for inclination.
-    pdb.set_trace()
     try:
-        assert np.isclose(
-            radii_ratio_lt,
-            radius_sep_s / radius_sep_g)
+        assert np.isclose(radii_ratio_lt, radius_ratio_sep)
     except AssertionError:
         warnings.warn(
             ("\n" +
@@ -1550,7 +1548,7 @@ def model_quantities_from_lc_velr_stellar(
              "from the light curve may not be self-consistent:\n" +
              "    radii_ratio_lt              = {rrl}\n" +
              "    radius_sep_s / radius_sep_g = {rrs}").format(
-             rrl=radii_ratio_lt, rrs=radius_sep_s/radius_sep_g))
+             rrl=radii_ratio_lt, rrs=radius_ratio_sep))
     try:
         rtol = 1e-1
         radius_s_from_velrs_times = \
