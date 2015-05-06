@@ -262,13 +262,13 @@ def test_has_nans(
     return None
 
 
-# Test special cases for test_has_nans
+# Additional cases for test_has_nans
 test_has_nans(
     obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf', 2.0)]}},
     found_nan=False)
 
 
-# TODO: test_model_geometry_from_light_curve using binstarsolver example.
+# TODO: update test when light curve parameters include phase, period.
 def test_model_geometry_from_light_curve(
     params=(np.deg2rad(3.5), np.deg2rad(12.3), 0.898, 1.0, 0.739, 0.001),
     show_plots=False,
@@ -277,11 +277,6 @@ def test_model_geometry_from_light_curve(
     r"""Pytest style test for code/utils.py:
     model_geometry_from_light_curve
 
-    Notes
-    -----
-    - Default example if from Ch 7, Budding, 2009. Example has
-        primary minimum corresponding to transit, not occultation. 
-
     """
     test_geoms = \
         code.utils.model_geometry_from_light_curve(
@@ -289,4 +284,38 @@ def test_model_geometry_from_light_curve(
     assert np.all(np.isclose(ref_geoms, test_geoms))
     return None
 
-# TODO: test_model_quantities_from_light_curve_model
+
+# Additional cases for test_model_geometry_from_light_curve
+test_model_geometry_from_light_curve(
+    params=(0.164135455619, 0.165111260919, 0.0478630092323, 1.0,
+            0.758577575029, 0.01),
+    show_plots=False,
+    ref_geoms=(0.952136990768, 0.0478630092323, 2.2458916679, np.deg2rad(90.0),
+               0.000481306260183, 0.163880773527))
+
+
+# TODO: update test when light curve parameters include phase, period.
+def test_model_quantities_from_light_curve_model(
+    phase0=np.nan,
+    period=271209600.0,
+    lc_params=(0.164135455619, 0.165111260919,
+               0.0478630092323, 1.0, 0.758577575029, 0.01),
+    velr_b=33e3,
+    stellar_b=(2.61291629258e+30, 760266000.0, 1.40922538433),
+    ref_quants=(np.nan, 271209600.0, np.deg2rad(90.0), 1.55823297919e+12,
+                2.324294844333284e+31,
+                33e3, 1.42442349898e+12, 2.61291629258e+30, 760266000.0,
+                1.40922538433,
+                3.1e3, 1.33809480207e+11, 2.78149153727e+31, 258864241950.22577,
+                1.0)):
+    r"""Pytest style test for code/utils.py:
+    model_quantities_from_light_curve_model
+
+    """
+    test_quants = \
+        code.utils.model_quantities_from_lc_velr_stellar(
+            phase0=phase0, period=period, lc_params=lc_params, velr_b=velr_b,
+            stellar_b=stellar_b)
+    # NOTE: remove equal_nan when phase0 is computed from light curve
+    assert np.all(np.isclose(ref_quants, test_quants, equal_nan=True))
+    return None
