@@ -1139,7 +1139,7 @@ def calc_phased_histogram(
     return (hist_phases, hist_fluxes, hist_fluxes_err)
 
 
-def read_params_gianninas(fobj):
+def read_quants_gianninas(fobj):
     """Read and parse custom file format of physical stellar parameters from
     Gianninas et al 2014, [1]_.
     
@@ -1161,7 +1161,7 @@ def read_params_gianninas(fobj):
     Examples
     --------
     >>> with open('path/to/file.txt', 'rb') as fobj:
-    ...     dobj = read_params_gianninas(fobj)
+    ...     dobj = read_quants_gianninas(fobj)
     
     References
     ----------
@@ -1444,8 +1444,8 @@ def model_quantities_from_lc_velr_stellar(
     # TODO: get phase0 and period from lc_params.
     (phase_orb_int, phase_orb_ext,
      light_oc, light_ref, light_tr, _) = lc_params
-    time_begin_ingress = -phase_orb_ext * period
-    time_end_ingress   = -phase_orb_int * period
+    time_begin_ingress = -phase_orb_ext*period / (2.0*np.pi)
+    time_end_ingress   = -phase_orb_int*period / (2.0*np.pi)
     time_begin_egress  = -time_begin_ingress
     (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
      incl_rad, radius_sep_s, radius_sep_g) = \
