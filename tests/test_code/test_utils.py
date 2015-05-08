@@ -238,7 +238,7 @@ def test_calc_phased_histogram(
     return None
 
 
-def test_read_params_gianninas(
+def test_read_quants_gianninas(
     fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
                            "==========  ===== ======= ====== =========\n" +
                            "J1600+2721  DA6.0   8353. -1.002 1.107 Gyr"),
@@ -248,7 +248,7 @@ def test_read_params_gianninas(
     r"""Test that parameters from Gianninas are read correctly.
     
     """
-    assert dobj == code.utils.read_params_gianninas(fobj=fobj)
+    assert dobj == code.utils.read_quants_gianninas(fobj=fobj)
     return None
 
 
@@ -295,11 +295,11 @@ test_model_geometry_from_light_curve(
 
 
 # TODO: update test when light curve parameters include phase, period.
-def test_model_quantities_from_light_curve_model(
+def test_model_quantities_from_lc_velr_stellar(
     phase0=np.nan,
     period=271209600.0,
     lc_params=(0.164135455619, 0.165111260919,
-               0.0478630092323, 1.0, 0.758577575029, 0.01),
+               0.0478630092323, 1.0, 0.758577575029, np.nan),
     velr_b=33e3,
     stellar_b=(2.61291629258e+30, 760266000.0, 1.40922538433),
     ref_quants=(np.nan, 271209600.0, np.deg2rad(90.0), 1.55823297919e+12,
