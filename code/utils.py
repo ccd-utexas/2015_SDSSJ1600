@@ -1446,7 +1446,7 @@ def model_quantities_from_lc_velr_stellar(
      light_oc, light_ref, light_tr, _) = lc_params
     time_begin_ingress = -phase_orb_ext*period / (2.0*np.pi)
     time_end_ingress   = -phase_orb_int*period / (2.0*np.pi)
-    time_begin_egress  = -time_begin_ingress
+    time_begin_egress  = -time_end_ingress
     (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
      incl_rad, radius_sep_s, radius_sep_g) = \
         model_geometry_from_light_curve(params=lc_params, show_plots=False)
@@ -1509,7 +1509,7 @@ def model_quantities_from_lc_velr_stellar(
     #         Calculate the radius, effective temperature.
     # NOTE: Ratios below are quantities of
     # smaller-radius star / greater-radius star
-    radius_ratio_sep = radius_sep_s / radius_sep_g
+    radii_ratio_sep = radius_sep_s / radius_sep_g
     flux_rad_ratio = \
         bss.utils.calc_flux_rad_ratio_from_light(
             light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
@@ -1517,10 +1517,10 @@ def model_quantities_from_lc_velr_stellar(
         bss.utils.calc_teff_ratio_from_flux_rad_ratio(
             flux_rad_ratio=flux_rad_ratio)
     if smaller_is_brighter:
-        radius_g = radius_s / radius_ratio_sep
+        radius_g = radius_s / radii_ratio_sep
         teff_g = teff_s / teff_ratio
     else:
-        radius_s = radius_g * radius_ratio_sep
+        radius_s = radius_g * radii_ratio_sep
         teff_s = teff_g * teff_ratio
     ########################################
     # Check calculations and return.
@@ -1539,18 +1539,22 @@ def model_quantities_from_lc_velr_stellar(
     # Check that the radii are calculated consistently.
     # There may be a difference if there was no self-consistent solution
     # for inclination.
+    assert radius_s <= radius_g
+    rtol = 1e-1
     try:
-        assert np.isclose(radii_ratio_lt, radius_ratio_sep)
+        assert np.isclose(radii_ratio_lt, radii_ratio_sep, rtol=rtol)
     except AssertionError:
         warnings.warn(
             ("\n" +
-             "Radii ratios do not agree. The solution for inclination\n" +
-             "from the light curve may not be self-consistent:\n" +
+             "Radii ratios do not agree to within rtol={rtol}.\n" +
+             "The solution for inclination from the light curve\n" +
+             "may not be self-consistent:\n" +
              "    radii_ratio_lt              = {rrl}\n" +
              "    radius_sep_s / radius_sep_g = {rrs}").format(
-             rrl=radii_ratio_lt, rrs=radius_ratio_sep))
+                 rtol=rtol,
+                 rrl=radii_ratio_lt,
+                 rrs=radii_ratio_sep))
     try:
-        rtol = 1e-1
         radius_s_from_velrs_times = \
             bss.utils.calc_radius_from_velrs_times(
                 velr_1=velr_s, velr_2=velr_g,
