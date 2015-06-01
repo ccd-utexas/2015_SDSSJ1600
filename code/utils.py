@@ -20,11 +20,65 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+def calc_period_limits(times):
+    r"""Calculate the region of dectable periods.
+    
+    Paramters
+    ---------
+    times : numpy.ndarray
+        1D array of time coordinates for data.
+        Unit is time, e.g. seconds or days.
+    
+    Returns
+    -------
+    min_period : float
+    max_period : float
+        Min, max periods detectable from `times`.
+        Units are sames as `times`.
+    num_periods : int
+        Number of distinguishable periods limited by period resolution.
+
+    Notes
+    -----
+    - The concept of Nyquist limits does not apply to irregularly sampled
+      data ([1]_, [2]_). However, as a conservative constraint, consider only
+      periods between 2*median_sampling_period and 0.5*acquisition_duration
+      adapted from [3]_. antialias_factor = 2.56 from [3]_.
+        med_sampling_period = np.median(np.diff(times))
+        acquisition_duration = max(times) - min(times)
+        min_period = 2.0 * med_sampling_period
+        max_period = 0.5 * aquisition_duration
+        antialias_factor = 2.56
+        num_periods = \
+            int(antialias_factor * acquisition_duration / med_sampling_period)
+    
+    References
+    ----------
+    .. [1] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+    .. [2] https://github.com/astroML/gatspy/issues/3
+    .. [3] http://zone.ni.com/reference/en-XX/help/372416B-01/
+           svtconcepts/fft_funda/
+    
+    """
+    med_sampling_period = np.median(np.diff(times))
+    acquisition_duration = max(times) - min(times)
+    min_period = 2.0 * med_sampling_period
+    max_period = 0.5 * acquisition_duration
+    antialias_factor = 2.56
+    num_periods = \
+        int(antialias_factor * acquisition_duration / med_sampling_period)
+    return (min_period, max_period, num_periods)
+
+
+# TODO: REDO BELOW HERE
+
+
 def plot_periodogram(
         periods, powers, xscale='log', n_terms=1, period_unit='seconds',
         flux_unit='relative', return_ax=False):
-    r"""Plot the periods and powers for a generalized Lomb-Scargle
-    periodogram. Convenience function for plot formats from [1]_.
+    r"""Plot the periods and relative powers for a generalized Lomb-Scargle
+    periodogram. Convenience function for plot formats from [1]_, [2]_.
 
     Parameters
     ----------
@@ -170,8 +224,8 @@ def calc_periodogram(
     ----------
     .. [1] Ivezic et al, 2014,
            "Statistics, Data Mining, and Machine Learning in Astronomy'
-    .. [2] http://zone.ni.com/reference/en-XX/help/372416B-01/svtconcepts/
-           fft_funda/
+    .. [2] VanderPlas and Ivezic, 2015
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
     # Check inputs.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Top-level script for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
+r"""Top-level script for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 
 """
 

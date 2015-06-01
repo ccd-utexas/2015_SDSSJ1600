@@ -23,6 +23,23 @@ import numpy as np
 import code
 
 
+def test_calc_period_limits(
+    times=xrange(10), ref_min_period=2.0, ref_max_period=4.5, ref_num_periods=23):
+    r"""Pytest for code/utils.py:
+    calc_period_limits
+    
+    """
+    (test_min_period, test_max_period, test_num_periods) = \
+        code.utils.calc_period_limits(times=times)
+    assert np.isclose(ref_min_period, test_min_period)
+    assert np.isclose(ref_max_period, test_max_period)
+    assert np.isclose(ref_num_periods, test_num_periods)
+    return None
+
+
+# TODO: REDO BELOW HERE
+
+
 def test_plot_periodogram(
     periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
     n_terms=1, period_unit='seconds', flux_unit='relative', return_ax=True):
