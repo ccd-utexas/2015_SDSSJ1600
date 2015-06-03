@@ -71,9 +71,6 @@ def calc_period_limits(times):
     return (min_period, max_period, num_periods)
 
 
-# TODO: REDO BELOW HERE
-
-
 def plot_periodogram(
     periods, powers, xscale='log', period_unit='seconds',
     flux_unit='relative', return_ax=False):
@@ -97,12 +94,13 @@ def plot_periodogram(
         Strings describing period and flux units for labeling the plot.
         Example: period_unit='seconds', flux_unit='relative' will label
         the x-axis with "Period (seconds)"
-        and label the y-axis with "Lomb-Scargle Power Spectral Density\n" +
+        and label the y-axis with
+        "Relative Lomb-Scargle Power Spectral Density" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
-        If `True`, return a `matplotlib.axes` instance for additional
-        modification.
+        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
+        instance for additional modification.
 
     Returns
     -------
@@ -136,11 +134,11 @@ def plot_periodogram(
 
 
 def calc_periodogram(
-        times, fluxes, fluxes_err, min_period=None, max_period=None,
-        num_periods=None, sigs=(95.0, 99.0), num_bootstraps=100,
-        show_periodogram=True, period_unit='seconds', flux_unit='relative'):
+    times, fluxes, fluxes_err, min_period=None, max_period=None,
+    num_periods=None, sigs=(95.0, 99.0), num_shuffles=100,
+    show_plot=True, period_unit='seconds', flux_unit='relative'):
     r"""Calculate periods, powers, and significance levels using generalized
-    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
+    Lomb-Scargle periodogram. Convenience function for methods from [1]_, [2]_.
        
     Parameters
     ----------
@@ -154,68 +152,52 @@ def calc_periodogram(
         1D array of errors for fluxes. Unit is same as `fluxes`.
     min_period : {None}, float, optional
         Minimum period to sample. Unit is same as `times`.
-        If `None` (default), `min_period` = 2x median sampling period,
-        (the Nyquist limit from [2]_).
+        If `None` (default), `min_period` defined by `calc_period_limits`.
     max_period : {None}, float, optional
         Maximum period to sample. Unit is same as `times`.
-        If `None` (default), `max_period` = 0.5x acquisition time,
-        (1 / (2x the frequency resolution) adopted from [2]_).
+        If `None` (default), `max_period` defined by `calc_period_limits`.
     num_periods : {None}, int, optional
         Number of periods to sample, including `min_period` and `max_period`.
-        If `None` (default), `num_periods` = minimum of 
-        acquisition time / median sampling period (adopted from [2]_), or
-        1e4  (to limit computation time).
+        If `None` (default), `num_periods` defined by `calc_period_limits`,
+        or 1e3, whichever is fewer  to limit computation time.
     sigs : {(95.0, 99.0)}, tuple of floats, optional
         Levels of statistical significance for which to compute corresponding
-        Lomb-Scargle powers via bootstrap analysis.
-    num_bootstraps : {100}, int, optional
-        Number of bootstrap resamplings to compute significance levels.
+        Lomb-Scargle relative percentile powers via shuffling `times`.
+    num_shuffles : {100}, int, optional
+        Number of shuffles to compute significance levels.
     show_periodogram : {True, False}, bool, optional
         If `True` (default), display periodogram plot of Lomb-Scargle
         power spectral density vs period with significance levels.
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
-        Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label
-        the x-axis with "Period (seconds)" and label the y-axis with
-        "Lomb-Scargle Power Spectral Density\n" +
-        "(from flux in relative, ang. freq. in 2*pi/seconds)".
+        Strings describing period and flux units for labeling the plot
+        with `plot_periodogram`.
     
     Returns
     -------
     periods : numpy.ndarray
         1D array of periods. Unit is same as `times`.
     powers  : numpy.ndarray
-        1D array of powers. Unit is Lomb-Scargle power spectral density
+        1D array of powers. Unit is relative Lomb-Scargle power spectral density
         from flux and angular frequency, e.g. from relative flux,
         angular frequency 2*pi/seconds.
-    sigs_powers : list of tuple of floats
-        Powers corresponding to levels of statistical significance
-        from bootstrap analysis.
-        Example: [(95.0, 0.05), (99.0, 0.06)]
+    sigs_powers : list
+        Relative powers corresponding to levels of statistical significance.
+        Example: 
+            [(95.0, [0.051, 0.052, 0.049, ...]),
+             (99.0, [0.059, 0.062, 0.061, ...])]
+            np.shape(relative_powers) == np.shape(times)
 
     See Also
     --------
-    astroML.time_series.search_frequencies, select_sig_periods_powers
+    calc_period_limits, plot_periodogram
     
     Notes
     -----
-    - Minimum period default calculation:
-        min_period = 2.0 * np.median(np.diff(times))
-    - Maximum period default calculation:
-        max_period = 0.5 * (max(times) - min(times))
-    - Number of periods default calculation:
-        num_periods = \
-            int(min(
-                (max(times) - min(times)) / np.median(np.diff(times))),
-                 1e4)
-    - Period sampling is linear in angular frequency space
-        with more samples for shorter periods.
-    - Computing periodogram of 1e4 periods with 100 bootstraps
+    - Computing periodogram of 1e3 periods with 100 shuffles
         takes ~85 seconds for a single 2.7 GHz core.
         Computation time is approximately linear with number
-        of periods and number of bootstraps.
-    - Call before `astroML.time_series.search_frequencies`.
+        of periods and number of shuffles.
 
     References
     ----------
@@ -225,52 +207,26 @@ def calc_periodogram(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
-    # Check inputs.
-    median_sampling_period = np.median(np.diff(times))
-    min_period_nyquist = 2.0 * median_sampling_period
+    # Check input.
+    (min_period_limit, max_period_limit, num_periods_limit) = \
+        calc_period_limits(times=times)
     if min_period is None:
-        min_period = min_period_nyquist
-    elif min_period < min_period_nyquist:
-        warnings.warn(
-            ("`min_period` is less than the Nyquist period limit\n" +
-             "(2x the median sampling period).\n" +
-             "Input: min_period = {per}\n" +
-             "Nyquist: min_period_nyquist = {per_nyq}").format(
-                 per=min_period, per_nyq=min_period_nyquist))
-    acquisition_time = max(times) - min(times)
-    max_period_acqtime = 0.5 * acquisition_time
+        min_period = min_period_limit
     if max_period is None:
-        max_period = max_period_acqtime
-    elif max_period > max_period_acqtime:
-        warnings.warn(
-            ("`max_period` is greater than 0.5x the acquisition time.\n" +
-             "Input: max_period = {per}\n" +
-             "From data: max_period_acqtime = {per_acq}").format(
-                 per=max_period, per_acq=max_period_acqtime))
-    max_num_periods = int(acquisition_time / median_sampling_period)
-    if num_periods is None:
-        num_periods = int(min(max_num_periods, 1e4))
-    elif num_periods > max_num_periods:
-        warnings.warn(
-            ("`num_periods` is greater than acquisition time divided by\n" +
-             "the median sampling period.\n" +
-             "Input: num_periods = {num}\n" +
-             "From data: max_num_periods = {max_num}").format(
-                 num=num_periods, max_num=max_num_periods))        
-    comp_time = 85.0 * (num_periods/1e4) * (num_bootstraps/100) # in seconds
-    if comp_time > 10.0:
-        print("INFO: Estimated computation time: {time:.0f} sec".format(
-            time=comp_time))
+        max_period = max_period_limit
+    if num_periods_limit is None:
+        num_periods = num_periods_limit
     # Compute periodogram.
-    max_omega = 2.0 * np.pi / min_period
-    min_omega = 2.0 * np.pi / max_period
+    min_omega = 2.0*np.pi / max_period
+    max_omega = 2.0*np.pi / min_period
+    num_omegas = num_periods
     omegas = \
         np.linspace(
-            start=min_omega, stop=max_omega, num=num_periods, endpoint=True)
-    periods = 2.0 * np.pi / omegas
-    powers = \
-        astroML_ts.lomb_scargle(
-            t=times, y=fluxes, dy=fluxes_err, omega=omegas, generalized=True)
+            start=min_omega, stop=max_omega, num=num_omegas, endpoint=True)
+    periods = 2.0*np.pi / omegas
+    # TODO: resume here 6/3/2015. define model.
+    powers = model.periodogram(periods=siglev_periods)
+    # TODO: redo below here
     dists = \
         astroML_ts.lomb_scargle_bootstrap(
             t=times, y=fluxes, dy=fluxes_err, omega=omegas, generalized=True,
@@ -301,6 +257,9 @@ def calc_periodogram(
                  "power spectral density = {pwr}").format(
                     sig=sig, pwr=power))
     return (periods, powers, sigs_powers)
+
+
+# TODO: REDO BELOW HERE
 
 
 def select_sig_periods_powers(
