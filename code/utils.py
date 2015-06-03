@@ -75,27 +75,23 @@ def calc_period_limits(times):
 
 
 def plot_periodogram(
-        periods, powers, xscale='log', n_terms=1, period_unit='seconds',
-        flux_unit='relative', return_ax=False):
-    r"""Plot the periods and relative powers for a generalized Lomb-Scargle
-    periodogram. Convenience function for plot formats from [1]_, [2]_.
+    periods, powers, xscale='log', period_unit='seconds',
+    flux_unit='relative', return_ax=False):
+    r"""Plot the periods and relative powers for a multiband generalized
+    Lomb-Scargle periodogram. Convenience function for plot formats from
+    [1]_, [2]_.
 
     Parameters
     ----------
     periods : numpy.ndarray
         1D array of periods. Unit is time, e.g. seconds or days.
-    powers  : numpy.ndarray
-        1D array of powers. Unit is Lomb-Scargle power spectral density
+    powers : numpy.ndarray
+        1D array of powers. Unit is relative Lomb-Scargle power spectral density
         from flux and angular frequency, e.g. from relative flux,
         angular frequency 2*pi/seconds.
     xscale : {'log', 'linear'}, string, optional
         `matplotlib.pyplot` attribute to plot periods x-scale in
         'log' (default) or 'linear' scale.
-    n_terms : {1}, int, optional
-        Number of Fourier terms used to fit the light curve.
-        Used for labeling the plot.
-        Example: n_terms=1 will label the title with
-        "Generalized Lomb-Scargle periodogram\nwith 1 Fourier terms fit"
     period_unit : {'seconds'}, string, optional
     flux_unit : {'relative'}, string, optional
         Strings describing period and flux units for labeling the plot.
@@ -117,17 +113,18 @@ def plot_periodogram(
     ----------
     .. [1] Ivezic et al, 2014,
            "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
     fig = plt.figure()
     ax = fig.add_subplot(111, xscale=xscale)
-    ax.plot(periods, powers, color='black', linewidth=1)
+    ax.plot(periods, powers, marker='.')
     ax.set_xlim(min(periods), max(periods))
-    ax.set_title(("Generalized Lomb-Scargle periodogram\n" +
-                  "with {num} Fourier terms fit").format(num=n_terms))
-    ax.set_xlabel("Period ({punit})".format(punit=period_unit))
+    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
+    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
     ax.set_ylabel(
-        ("Lomb-Scargle Power Spectral Density\n" +
+        ("Relative Lomb-Scargle Power Spectral Density\n" +
          "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
             funit=flux_unit, punit=period_unit))
     if return_ax:
