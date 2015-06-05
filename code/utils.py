@@ -16,8 +16,14 @@ import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
 import binstarsolver as bss
+import gatspy.periodic as gastpy_per
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+
+
+# Set environment
+sns.set() # Set matplotlib styles by seaborn.
 
 
 def calc_period_limits(times):
@@ -71,6 +77,8 @@ def calc_period_limits(times):
     return (min_period, max_period, num_periods)
 
 
+# TODO: make pytest
+
 def plot_periodogram(
     periods, powers, xscale='log', period_unit='seconds',
     flux_unit='relative', return_ax=False):
@@ -119,7 +127,7 @@ def plot_periodogram(
     ax = fig.add_subplot(111, xscale=xscale)
     ax.plot(periods, powers, marker='.')
     ax.set_xlim(min(periods), max(periods))
-    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
+    ax.set_title("Multiband Generalized Lomb-Scargle Periodogram")
     ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
     ax.set_ylabel(
         ("Relative Lomb-Scargle Power Spectral Density\n" +
@@ -133,12 +141,143 @@ def plot_periodogram(
     return return_obj
 
 
+
+
+# TODO: make pytest
+def calc_min_flux_time(
+    model, filt, best_period=None, tol=0.1, maxiter=10):
+    r"""Calculate the time at which the minimum flux occurs. Use to define a
+    phase offset so that phase=0 at minimum flux.
+
+    Parameters
+    ----------
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+    filt : string
+        Filter from `model` for which to calculate time of minimum flux.
+    best_period : {None}, float, optional
+
+    tol
+    maxiter
+
+    Returns
+    -------
+    min_time : float
+        Time at which minimum flux occurs.
+
+    See Also
+    --------
+    gatspy.periodic.LombScargleMultiband
+
+    Notes
+    -----
+    - To create a phased light curve with minimum flux at phase=0:
+        Instead of `plt.plot(times % best_period, fluxes)`
+        do `plt.plot((times - min_flux_time) % best_period, fluxes)`
+
+    Raises
+    ------
+    warnings.warn :
+        - Raised if solutio for `min_time` did not converge to within tolerance.
+    AssertionError :
+        - Raised if not 0 <= `lhs_time_init` <= `min_time` <= `rhs_time_init`
+            <= `best_period`, where `lhs_time_init` and `rhs_time_init` are
+            initial bounds for time of global minimum flux.
+        - Raised if not `min_flux` <= `min_flux_init`, where `min_flux_init`
+            is the initial bound for global minimum flux and `min_flux` is the
+            global minimum flux.
+
+    """
+    # Check input.
+    if best_period is None:
+        best_period = model.best_period
+    phased_times_fit = \
+        np.linspace(start=0.0, stop=best_period, num=1000, endpoint=False)
+    phased_fluxes_fit = \
+        model.predict(
+            t=phased_times_fit, filts=[filt]*1000, period=best_period)
+    fmt_parameters = \
+        ("best_period = {bp}\n" +
+         "tol = {tol}\n" +
+         "maxiter = {maxiter}").format(
+            bp=best_period, tol=tol, maxiter=maxiter)
+    # Prepend/append data if min flux is at beginning/end of folded time series.
+    min_idx = np.argmin(phased_fluxes_fit)
+    if min_idx == 0:
+        phased_times_fit = np.append(phased_times_fit[-1:], phased_times_fit)
+        phased_fluxes_fit = np.append(phased_fluxes_fit[-1:], phased_fluxes_fit)
+        min_idx = 1
+    elif min_idx == len(phased_fluxes_fit)-1:
+        phased_times_fit = np.append(phased_times_fit, phased_times_fit[:0])
+        phased_fluxes_fit = np.append(phased_fluxes_fit, phased_fluxes_fit[:0])
+    # Bound left- and right-hand-sides of time at which flux is global min. 
+    (lhs_idx, rhs_idx) = (min_idx - 1, min_idx + 1)
+    (lhs_time, lhs_flux) = \
+        (phased_times_fit[lhs_idx], phased_fluxes_fit[lhs_idx])
+    (min_time, min_flux) = \
+        (phased_times_fit[min_idx], phased_fluxes_fit[min_idx])
+    (rhs_time, rhs_flux) = \
+        (phased_times_fit[rhs_idx], phased_fluxes_fit[rhs_idx])
+    (lhs_time_init, rhs_time_init) = (lhs_time, rhs_time)
+    min_flux_init = min_flux
+    # Zoom in on time of global flux min.
+    itol = rhs_time - lhs_time
+    inum = 0
+    while (itol > tol) and (inum < maxiter):
+        phased_times_subfit = \
+            np.linspace(start=lhs_time, stop=rhs_time, num=10, endpoint=True)
+        phased_fluxes_subfit = \
+            model.predict(
+                t=phased_times_subfit, filts=[filt]*10, period=best_period)
+        min_subidx = np.argmin(phased_fluxes_subfit)
+        (lhs_subidx, rhs_subidx) = (min_subidx - 1, min_subidx + 1)
+        (lhs_time, lhs_flux) = \
+            (phased_times_subfit[lhs_subidx], phased_fluxes_subfit[lhs_subidx])
+        (min_time, min_flux) = \
+            (phased_times_subfit[min_subidx], phased_fluxes_subfit[min_subidx])
+        (rhs_time, rhs_flux) = \
+            (phased_times_subfit[rhs_subidx], phased_fluxes_subfit[rhs_subidx])
+        itol = rhs_time - lhs_time
+        inum += 1
+    # Check that solution converged within `tol` and `maxiter` constraints.
+    if (itol > tol) and (inum >= maxiter):
+        warnings.warn(
+            "\n" +
+            "Solution for `min_time` did not converge to within tolerance.\n" +
+            "Input parameters:\n" +
+            fmt_parameters)
+    # Check that program executed correctly.
+    if not (
+        (0 <= lhs_time_init) and (lhs_time_init <= min_time) and
+        (min_time <= rhs_time_init) and (rhs_time_init <= best_period)):
+        raise AssertionError(
+            ("Program error.\n" +
+             "Required: 0 <= `lhs_time_init` <= `min_time`" +
+             " <= `rhs_time_init` <= `best_period`:\n" +
+             "lhs_time_init = {lhi}\n" +
+             "min_time = {mt}\n" +
+             "rhs_time_init = {rhi}\n" +
+             "best_period = {bp}").format(
+                lhi=lhs_time_init, mt=min_time,
+                rhi=rhs_time_init, bp=best_period))
+    if not min_flux <= min_flux_init:
+        raise AssertionError(
+            ("Program error.\n" +
+             "Required: `min_flux` <= `min_flux_init`\n" +
+             "min_flux = {mf}\n" +
+             "min_flux_init = {mfi}").format(
+                mf=min_flux, mfi=min_flux_init))
+    return min_time
+
+
 def calc_periodogram(
-    times, fluxes, fluxes_err, min_period=None, max_period=None,
+    times, fluxes, fluxes_err, filts, min_period=None, max_period=None,
     num_periods=None, sigs=(95.0, 99.0), num_shuffles=100,
     show_plot=True, period_unit='seconds', flux_unit='relative'):
-    r"""Calculate periods, powers, and significance levels using generalized
-    Lomb-Scargle periodogram. Convenience function for methods from [1]_, [2]_.
+    r"""Calculate periods, powers, best period, and significance levels
+    using multiband generalized Lomb-Scargle periodogram. Convenience function
+    for methods from [1]_, [2]_.
        
     Parameters
     ----------
@@ -150,6 +289,9 @@ def calc_periodogram(
         e.g. relative flux or magnitudes.
     fluxes_err : numpy.ndarray
         1D array of errors for fluxes. Unit is same as `fluxes`.
+    filts : list
+        1D array of string values for filters.
+        Example: filts=['u', 'g', 'r', u', 'g', 'r', ...]
     min_period : {None}, float, optional
         Minimum period to sample. Unit is same as `times`.
         If `None` (default), `min_period` defined by `calc_period_limits`.
@@ -216,7 +358,12 @@ def calc_periodogram(
         max_period = max_period_limit
     if num_periods_limit is None:
         num_periods = num_periods_limit
-    # Compute periodogram.
+    # Model time series and find best period.
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    model.optimizer.period_range = (min_period, max_period)
+    model.fit(t=times, y=fluxes, dy=fluxes_err, filts=filts)
+    model.best_period
+    # Calculate powers for plot.
     min_omega = 2.0*np.pi / max_period
     max_omega = 2.0*np.pi / min_period
     num_omegas = num_periods
@@ -224,8 +371,16 @@ def calc_periodogram(
         np.linspace(
             start=min_omega, stop=max_omega, num=num_omegas, endpoint=True)
     periods = 2.0*np.pi / omegas
-    # TODO: resume here 6/3/2015. define model.
-    powers = model.periodogram(periods=siglev_periods)
+    powers = model.periodogram(periods=periods)
+    # Model noise in time series and find significance levels.
+    np.random.seed(seed=0) # for reproducibility
+    noise_model = copy.copy(model)
+    shuffled_times = copy.copy(times)
+    noise_powers_arr = []
+    for _ in xrange(num_shuffles):
+        np.random.shuffle(shuffled_times)
+        noise_model.fit(t=shuffled_times, y=fluxes, dy=fluxes_err, filts=filts)
+        noise_powers_arr.append(noise_model.periodogram(periods=periods))
     # TODO: redo below here
     dists = \
         astroML_ts.lomb_scargle_bootstrap(
