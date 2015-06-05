@@ -79,7 +79,7 @@ def calc_period_limits(times):
 
 # TODO: make pytest
 def calc_sig_levels(
-    min_period, max_period, ):
+    model, sigs=(95, 99, 99.9)):
     r"""Calculate relative powers that correspond to significance levels for
     a multiband generalized Lomb-Scargle periodogram. Convenience function for
     methods from [1]_, [2]_.
@@ -100,6 +100,9 @@ def calc_sig_levels(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
 
     """
+    # TODO: use model.optimizer.period_range for min/max_period
+    # model.t, model.y, model.dy, model.filts
+    return None
 
 def plot_periodogram(
     periods, powers, xscale='log', period_unit='seconds',
