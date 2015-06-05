@@ -78,12 +78,34 @@ def calc_period_limits(times):
 
 
 # TODO: make pytest
+def calc_sig_levels(
+    min_period, max_period, ):
+    r"""Calculate relative powers that correspond to significance levels for
+    a multiband generalized Lomb-Scargle periodogram. Convenience function for
+    methods from [1]_, [2]_.
+
+    Parameters
+    ----------
+
+
+    See Also
+    --------
+    calc_period_limits
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+
+    """
 
 def plot_periodogram(
     periods, powers, xscale='log', period_unit='seconds',
     flux_unit='relative', return_ax=False):
     r"""Plot the periods and relative powers for a multiband generalized
-    Lomb-Scargle periodogram. Convenience function for plot formats from
+    Lomb-Scargle periodogram. Convenience function for methods from
     [1]_, [2]_.
 
     Parameters
@@ -141,8 +163,6 @@ def plot_periodogram(
     return return_obj
 
 
-
-
 # TODO: make pytest
 def calc_min_flux_time(
     model, filt, best_period=None, tol=0.1, maxiter=10):
@@ -157,9 +177,15 @@ def calc_min_flux_time(
     filt : string
         Filter from `model` for which to calculate time of minimum flux.
     best_period : {None}, float, optional
-
-    tol
-    maxiter
+        Period of light curve model that best represents the time series data.
+        Unit is same as times in `model.t`, e.g. seconds.
+    tol : {0.1}, float, optional
+        Tolerance for maximum permissible uncertainty in solved `min_time`.
+        Unit is same as times in `model.t`, e.g. seconds.
+    maxiter : {10}, int, optional
+        Maximum number of iterations permitted in solving `min_time`.
+        Example: For `best_period` = 86400 seconds and `tol` = 0.1 seconds,
+        `min_time` is typically solved to within `tol` by ~5 iterations.
 
     Returns
     -------
