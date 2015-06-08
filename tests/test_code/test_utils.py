@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-r"""Tests for code/utils.py.
+r"""Pytests for code/utils.py.
 
 Notes
 -----
@@ -17,6 +17,8 @@ import sys
 sys.path.insert(0, '.') # Test the code in this repository.
 # Import installed packages.
 import astroML.time_series as astroML_ts
+import gatspy.datasets as gatspy_data
+import gatspy.periodic as gatspy_per
 import matplotlib.pyplot as plt
 import numpy as np
 # Import local packages.
@@ -24,7 +26,8 @@ import code
 
 
 def test_calc_period_limits(
-    times=xrange(10), ref_min_period=2.0, ref_max_period=4.5, ref_num_periods=23):
+    times=xrange(10), ref_min_period=2.0, ref_max_period=4.5,
+    ref_num_periods=23):
     r"""Pytest for code/utils.py:
     calc_period_limits
     
@@ -37,13 +40,64 @@ def test_calc_period_limits(
     return None
 
 
-# TODO: REDO BELOW HERE
+def test_calc_sig_levels_case():
+    r"""Pytest cases for code/utils.py:
+    calc_sig_levels
 
+    """
+    # Define function for testing cases.
+    def test_calc_sig_levels(
+        model, ref_sig_periods, ref_sig_powers, sigs=(95.0, 99.0), num_periods=10,
+        num_shuffles=100):
+        r"""Pytest for code/utils.py:
+        calc_sig_levels
+
+        """
+        (test_sig_periods, test_sig_powers) = \
+            code.utils.calc_sig_levels(
+                model=model, sigs=sigs, num_periods=num_periods,
+                num_shuffles=num_shuffles)
+        assert np.all(np.isclose(ref_sig_periods, test_sig_periods))
+        for (ref_sig_power, test_sig_power) in zip(ref_sig_powers, test_sig_powers):
+            assert np.all(np.isclose(ref_sig_power, test_sig_power))
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    model.fit(t=times, y=mags, dy=mags_err, filts=filts)
+    (min_period, max_period, _) = code.utils.calc_period_limits(times=times)
+    model.optimizer.period_range = (min_period, max_period)
+    sigs = (95.0, 99.0)
+    num_periods = 10
+    num_shuffles = 100
+    ref_sig_periods = \
+        [1.66051856e+03, 2.99875187e-02, 1.49938947e-02, 9.99595991e-03,
+         7.49698121e-03, 5.99759039e-03, 4.99799500e-03, 4.28399755e-03,
+         3.74849907e-03, 3.33200001e-03]
+    ref_sig_powers = \
+        {95.0: \
+            [0.25057282, 0.2677001 , 0.25552392, 0.27637847, 0.26304325,
+             0.26439929, 0.24606125, 0.24080878, 0.24847659, 0.2455511 ],
+         99.0: \
+            [0.32243259, 0.31733991, 0.29113095, 0.33229025, 0.29343131,
+             0.29407153, 0.26594016, 0.26332914, 0.29706267, 0.2731428 ]}
+    test_calc_sig_levels(
+        model=model, sigs=sigs, num_periods=10, num_shuffles=100,
+        ref_sig_periods=ref_sig_periods, ref_sig_powers=ref_sig_powers)
+    # TODO: insert additional test cases here.
+    return None
+
+
+# TODO: REDO BELOW HERE
 
 def test_plot_periodogram(
     periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
     n_terms=1, period_unit='seconds', flux_unit='relative', return_ax=True):
-    r"""pytest style test for code.plot_periodogram
+    r"""Pytest for code/utils.py:
+    plot_periodogram
     
     """
     ax = \
@@ -67,7 +121,8 @@ def test_calc_periodogram(
                 0.68555962, 0.98455515, 1.45655044],
     ref_sigs_powers=[(95.0, 0.92877340237699546),
                      (99.0, 1.0210555725004953)]):
-    r"""pytest style test for code.calc_periodogram
+    r"""Pytest for code/utils.py:
+    calc_periodogram
 
     """
     (test_periods, test_powers, test_sigs_powers) = \

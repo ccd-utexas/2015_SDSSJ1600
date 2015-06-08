@@ -8,6 +8,7 @@ r"""Utilities for reproducing Harrold et al 2015 on SDSS J160036.83+272117.8.
 # Import standard packages.
 from __future__ import absolute_import, division, print_function
 import collections
+import copy
 import pdb
 import re
 import warnings
@@ -79,18 +80,47 @@ def calc_period_limits(times):
 
 # TODO: make pytest
 def calc_sig_levels(
-    model, sigs=(95, 99, 99.9)):
+    model, sigs=(95.0, 99.0, 99.9), num_periods=20, num_shuffles=1000):
     r"""Calculate relative powers that correspond to significance levels for
-    a multiband generalized Lomb-Scargle periodogram. Convenience function for
-    methods from [1]_, [2]_.
+    a multiband generalized Lomb-Scargle periodogram. The noise is modeled by
+    shuffling the time series. Convenience function for methods from [1]_, [2]_.
 
     Parameters
     ----------
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+    sigs : {(95.0, 99.0, 99.9)}, tuple, optional
+        `tuple` of `float` that are the levels of statistical significance.
+    num_periods : {20}, int, optional
+        Number of periods at which to compute significance levels.
+        The significance level changes slowly as a function of period.
+    num_shuffles : {1000}, int, optional
+        Number of shuffles used to compute significance levels.
+        For 1000 shuffles, the significance level can be computed to a max
+        resolution of 0.1 (i.e. 99.9 significance can be computed, not 99.99).
 
+    Returns
+    -------
+    sig_periods : numpy.ndarray
+        Periods at which significance levels were computed.
+    sig_powers : dict
+        `dict` of `numpy.ndarray`. Keys are `sigs`. Values are relative powers
+        for each significance level as a `numpy.ndarray`.
 
     See Also
     --------
-    calc_period_limits
+    gatspy.periodic.LombScargleMultiband, calc_period_limits
+
+    Notes
+    -----
+    - For a given period, a power is "signficant to the 99th percentile" if
+        that power is greater than 99% of all other powers due to noise at that
+        period. The noise is modeled by shuffling the time series.
+    - Period space is sampled linearly in angular frequency.
+    - The time complexity for computing noise levels is approximately linear
+        with `num_periods`*`num_shuffles`:
+        exec_time ~ 13.6 sec * (num_periods/20) * (num_shuffles/1000)
 
     References
     ----------
@@ -100,9 +130,27 @@ def calc_sig_levels(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
 
     """
-    # TODO: use model.optimizer.period_range for min/max_period
-    # model.t, model.y, model.dy, model.filts
-    return None
+    # Check input.
+    # Period space is sampled linearly in angular frequency.
+    noise_model = copy.deepcopy(model)
+    (min_period, max_period) = noise_model.optimizer.period_range
+    min_omega = 2.0*np.pi / max_period
+    max_omega = 2.0*np.pi / min_period
+    num_omegas = num_periods
+    sig_omegas = \
+        np.linspace(
+            start=min_omega, stop=max_omega, num=num_omegas, endpoint=True)
+    sig_periods = 2.0*np.pi / sig_omegas
+    # Calculate percentiles of powers from noise.
+    np.random.seed(seed=0) # for reproducibility
+    sig_powers_arr = []
+    for _ in xrange(num_shuffles):
+        np.random.shuffle(noise_model.t)
+        sig_powers_arr.append(noise_model.periodogram(periods=sig_periods))
+    sig_powers = \
+        {sig: np.percentile(a=sig_powers_arr, q=sig, axis=0) for sig in sigs}
+    return (sig_periods, sig_powers)
+
 
 def plot_periodogram(
     periods, powers, xscale='log', period_unit='seconds',
@@ -182,6 +230,7 @@ def calc_min_flux_time(
     best_period : {None}, float, optional
         Period of light curve model that best represents the time series data.
         Unit is same as times in `model.t`, e.g. seconds.
+        If `None` (default), uses `model.best_period`.
     tol : {0.1}, float, optional
         Tolerance for maximum permissible uncertainty in solved `min_time`.
         Unit is same as times in `model.t`, e.g. seconds.
