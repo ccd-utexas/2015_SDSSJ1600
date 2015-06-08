@@ -78,7 +78,68 @@ def calc_period_limits(times):
     return (min_period, max_period, num_periods)
 
 
-# TODO: make pytest
+def plot_periodogram(
+    periods, powers, xscale='log', period_unit='seconds',
+    flux_unit='relative', return_ax=False):
+    r"""Plot the periods and relative powers for a multiband generalized
+    Lomb-Scargle periodogram. Convenience function for methods from
+    [1]_, [2]_.
+
+    Parameters
+    ----------
+    periods : numpy.ndarray
+        1D array of periods. Unit is time, e.g. seconds or days.
+    powers : numpy.ndarray
+        1D array of powers. Unit is relative Lomb-Scargle power spectral density
+        from flux and angular frequency, e.g. from relative flux,
+        angular frequency 2*pi/seconds.
+    xscale : {'log', 'linear'}, string, optional
+        `matplotlib.pyplot` attribute to plot periods x-scale in
+        'log' (default) or 'linear' scale.
+    period_unit : {'seconds'}, string, optional
+    flux_unit : {'relative'}, string, optional
+        Strings describing period and flux units for labeling the plot.
+        Example: period_unit='seconds', flux_unit='relative' will label
+        the x-axis with "Period (seconds)"
+        and label the y-axis with
+        "Relative Lomb-Scargle Power Spectral Density" +
+        "(from flux in relative, ang. freq. in 2*pi/seconds)".
+    return_ax : {False, True}, bool
+        If `False` (default), show the periodogram plot. Return `None`.
+        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
+        instance for additional modification.
+
+    Returns
+    -------
+    ax : matplotlib.axes
+        Returned only if `return_ax` is `True`. Otherwise returns `None`.
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+    
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(111, xscale=xscale)
+    ax.plot(periods, powers, marker='.')
+    ax.set_xlim(min(periods), max(periods))
+    ax.set_title("Multiband Generalized Lomb-Scargle Periodogram")
+    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
+    ax.set_ylabel(
+        ("Relative Lomb-Scargle Power Spectral Density\n" +
+         "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
+            funit=flux_unit, punit=period_unit))
+    if return_ax:
+        return_obj = ax
+    else:
+        plt.show()
+        return_obj = None
+    return return_obj
+
+
 def calc_sig_levels(
     model, sigs=(95.0, 99.0, 99.9), num_periods=20, num_shuffles=1000):
     r"""Calculate relative powers that correspond to significance levels for
@@ -150,68 +211,6 @@ def calc_sig_levels(
     sig_powers = \
         {sig: np.percentile(a=sig_powers_arr, q=sig, axis=0) for sig in sigs}
     return (sig_periods, sig_powers)
-
-
-def plot_periodogram(
-    periods, powers, xscale='log', period_unit='seconds',
-    flux_unit='relative', return_ax=False):
-    r"""Plot the periods and relative powers for a multiband generalized
-    Lomb-Scargle periodogram. Convenience function for methods from
-    [1]_, [2]_.
-
-    Parameters
-    ----------
-    periods : numpy.ndarray
-        1D array of periods. Unit is time, e.g. seconds or days.
-    powers : numpy.ndarray
-        1D array of powers. Unit is relative Lomb-Scargle power spectral density
-        from flux and angular frequency, e.g. from relative flux,
-        angular frequency 2*pi/seconds.
-    xscale : {'log', 'linear'}, string, optional
-        `matplotlib.pyplot` attribute to plot periods x-scale in
-        'log' (default) or 'linear' scale.
-    period_unit : {'seconds'}, string, optional
-    flux_unit : {'relative'}, string, optional
-        Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label
-        the x-axis with "Period (seconds)"
-        and label the y-axis with
-        "Relative Lomb-Scargle Power Spectral Density" +
-        "(from flux in relative, ang. freq. in 2*pi/seconds)".
-    return_ax : {False, True}, bool
-        If `False` (default), show the periodogram plot. Return `None`.
-        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
-        instance for additional modification.
-
-    Returns
-    -------
-    ax : matplotlib.axes
-        Returned only if `return_ax` is `True`. Otherwise returns `None`.
-
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] VanderPlas and Ivezic, 2015,
-           http://adsabs.harvard.edu/abs/2015arXiv150201344V
-    
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, xscale=xscale)
-    ax.plot(periods, powers, marker='.')
-    ax.set_xlim(min(periods), max(periods))
-    ax.set_title("Multiband Generalized Lomb-Scargle Periodogram")
-    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
-    ax.set_ylabel(
-        ("Relative Lomb-Scargle Power Spectral Density\n" +
-         "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
-            funit=flux_unit, punit=period_unit))
-    if return_ax:
-        return_obj = ax
-    else:
-        plt.show()
-        return_obj = None
-    return return_obj
 
 
 # TODO: make pytest
@@ -349,6 +348,7 @@ def calc_min_flux_time(
     return min_time
 
 
+# TODO: REODO BELOW HERE.
 def calc_periodogram(
     times, fluxes, fluxes_err, filts, min_period=None, max_period=None,
     num_periods=None, sigs=(95.0, 99.0), num_shuffles=100,

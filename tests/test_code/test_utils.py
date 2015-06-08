@@ -40,7 +40,22 @@ def test_calc_period_limits(
     return None
 
 
-def test_calc_sig_levels_case():
+def test_plot_periodogram(
+    periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
+    period_unit='seconds', flux_unit='relative', return_ax=True):
+    r"""Pytest for code/utils.py:
+    plot_periodogram
+    
+    """
+    ax = \
+      code.utils.plot_periodogram(
+          periods=periods, powers=powers, xscale=xscale,
+          period_unit=period_unit, flux_unit=flux_unit, return_ax=return_ax)
+    assert isinstance(ax, plt.Axes)
+    return None
+
+
+def test_calc_sig_levels_cases():
     r"""Pytest cases for code/utils.py:
     calc_sig_levels
 
@@ -92,21 +107,6 @@ def test_calc_sig_levels_case():
 
 
 # TODO: REDO BELOW HERE
-
-def test_plot_periodogram(
-    periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
-    n_terms=1, period_unit='seconds', flux_unit='relative', return_ax=True):
-    r"""Pytest for code/utils.py:
-    plot_periodogram
-    
-    """
-    ax = \
-      code.utils.plot_periodogram(
-          periods=periods, powers=powers, xscale=xscale, n_terms=n_terms,
-          period_unit=period_unit, flux_unit=flux_unit, return_ax=return_ax)
-    assert isinstance(ax, plt.Axes)
-    return None
-
 
 def test_calc_periodogram(
     times=[1,2,3,4,5,6,7,8],
