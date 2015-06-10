@@ -80,7 +80,7 @@ def calc_period_limits(times):
 
 def plot_periodogram(
     periods, powers, xscale='log', period_unit='seconds',
-    flux_unit='relative', return_ax=False):
+    flux_unit='relative', legend=False, return_ax=False):
     r"""Plot the periods and relative powers for a multiband generalized
     Lomb-Scargle periodogram. Convenience function for methods from
     [1]_, [2]_.
@@ -104,7 +104,10 @@ def plot_periodogram(
         and label the y-axis with
         "Relative Lomb-Scargle Power Spectral Density" +
         "(from flux in relative, ang. freq. in 2*pi/seconds)".
-    return_ax : {False, True}, bool
+    legend : {False, True}, bool, optional
+        If `False` (default), do not show a legend.
+        If `True`, label the periodogram plot and create a legend.
+    return_ax : {False, True}, bool, optional
         If `False` (default), show the periodogram plot. Return `None`.
         If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
         instance for additional modification.
@@ -113,6 +116,10 @@ def plot_periodogram(
     -------
     ax : matplotlib.axes
         Returned only if `return_ax` is `True`. Otherwise returns `None`.
+
+    See Also
+    --------
+    plot_phased_light_curve
 
     References
     ----------
@@ -124,12 +131,18 @@ def plot_periodogram(
     """
     fig = plt.figure()
     ax = fig.add_subplot(111, xscale=xscale)
-    ax.plot(periods, powers, marker='.')
+    if legend:
+        label = 'relative L-S PSD'
+    else:
+        label = None
+    ax.plot(periods, powers, marker='.', label=label)
+    if legend:
+        ax.legend(loc='upper left')
     ax.set_xlim(min(periods), max(periods))
-    ax.set_title("Multiband Generalized Lomb-Scargle Periodogram")
+    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
     ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
     ax.set_ylabel(
-        ("Relative Lomb-Scargle Power Spectral Density\n" +
+        ("Relative Lomb-Scargle power spectral density\n" +
          "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
             funit=flux_unit, punit=period_unit))
     if return_ax:
@@ -253,7 +266,7 @@ def calc_min_flux_time(
 
     See Also
     --------
-    gatspy.periodic.LombScargleMultiband
+    gatspy.periodic.LombScargleMultiband, calc_phases
 
     Notes
     -----
@@ -383,67 +396,78 @@ def calc_min_flux_time(
     return min_flux_time
 
 
-def calc_phased_times(times, best_period, min_flux_time=0.0):
-    r"""Calculate phases of a time series in time units.
+def calc_phases(times, best_period, min_flux_time=0.0):
+    r"""Calculate phases of a time series.
 
     Parameters
     ----------
     times : numpy.ndarray
-        1D array of time coordinates. Units are time, e.g. seconds or days.
+        1D array of time coordinates of observed data.
+        Units are time, e.g. seconds or days.
     best_period : float
         Period that best represents the time series. Unit is same as `times`.
     min_flux_time : {0.0}, float, optional
         Time at which minimum flux occurs. Unit is same as `times`.
-        Required: 0.0 <= min_flux_time <= best_period
+        Required: 0.0 <= `min_flux_time` <= `best_period`
 
     Returns
     -------
-    phased_times : numpy.ndarray
-        `times` phased so that 0 <= `phased_times` <= `best_period`
-        `numpy.shape(phased_times) == numpy.shape(times)`
+    phases : numpy.ndarray
+        Phases of `times` such that 0 <= `phases` <= 1.0. Unit is decimal phase.
+        `numpy.shape(phases) == numpy.shape(times)`.
 
     See Also
     --------
-    calc_min_flux_time
+    calc_min_flux_time, plot_phased_light_curve
+
+    Raises
+    ------
+    ValueError :
+        - Raised if not 0.0 <= `min_flux_time` <= best_period.
 
     """
     # Check input.
     if not ((0.0 <= min_flux_time) and (min_flux_time <= best_period)):
         raise ValueError("Required: 0.0 <= `min_flux_time` <= `best_period`")
     # Calculate phased times.
-    phased_times = np.mod(np.subtract(times, min_flux_time), best_period)
-    return phased_times
+    phases = \
+        np.true_divide(
+            np.mod(
+                np.subtract(times, min_flux_time),
+                best_period),
+            best_period)
+    return phases
 
 
-# TODO: REDO BELOW HERE
 def plot_phased_light_curve(
-    phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
-    flux_unit='relative', return_ax=False):
+    phases, fluxes, fluxes_err, fit_phases, fit_fluxes,
+    flux_unit='relative', legend=False, return_ax=False):
     r"""Plot a phased light curve. Convenience function for plot formats
-    from [1]_.
+    from [1]_, [2]_.
 
     Parameters
     ----------
-    phases : ndarray
-        The phase coordinates of the best-fit light curve.
-        Unit is decimal orbital phase.
-    fits_phased : ndarray
-        The relative fluxes for corresponding `phases` of the best-fit
-        light curve. Unit is integrated flux, e.g. relative flux or magnitudes.
-    times_phased : ndarray
-        The phases of the time coordinates for the observed data.
-        Unit is decimal orbital phase.
+    phases : numpy.ndarray
+        1D array of phased time coordinates of observed data.
+        Required: 0.0 <= `phases` <= 1.0. Units are decimal phase.
     fluxes : numpy.ndarray
-        1D array of fluxes corresponding to `times_phased`.
-        Unit is integrated flux, e.g. relative flux or magnitudes.
+        1D array of fluxes corresponding to `phases`.
+        Units are relative integrated flux.
     fluxes_err : numpy.ndarray
-        1D array of errors for fluxes. Unit is same as `fluxes`.
-    n_terms : {1}, int, optional
-        Number of Fourier terms used to fit the light curve.
+        1D array of errors for `fluxes`. Units are same as `fluxes`.
+    fit_phases : numpy.ndarray
+        1D array of phased time coordinates of the best-fit light curve.
+        Required: 0.0 <= `fit_phases` <= 1.0. Units are same as `phases`.
+    fit_fluxes : numpy.ndarray
+        1D array of fluxes corresponding to `fit_phases`.
+        Units are same as `fluxes`.
     flux_unit : {'relative'}, string, optional
         String describing flux units for labeling the plot.
         Example: flux_unit='relative' will label the y-axis
         with "Flux (relative)".
+    legend : {False, True}, bool, optional
+        If `False` (default), do not show a legend.
+        If `True`, label the periodogram plot and create a legend.
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
         If `True`, return a `matplotlib.axes` instance
@@ -456,31 +480,61 @@ def plot_phased_light_curve(
     
     See Also
     --------
-    plot_periodogram
+    plot_periodogram, calc_min_flux_time, calc_phases
+
+    Raises
+    ------
+    ValueError :
+        - Raised if not 0.0 <= {`phases`, `fit_phases`} <= 1.0
     
     Notes
     -----
-    - The phased light curve is plotted through two complete cycles
-      to illustrate the deepest minimum.
+    - The phased light curve is plotted through 3 complete cycles
+        to illustrate the light curve shape.
 
     References
     ----------
     .. [1] Ivezic et al, 2014,
            "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
+    # Check input
+    if not \
+        (np.all(np.less_equal(0.0, phases)) and
+         np.all(np.less_equal(phases, 1.0))):
+        raise ValueError("Required: 0.0 <= `phases` <= 1.0")
+    if not \
+        (np.all(np.less_equal(0.0, fit_phases)) and
+         np.all(np.less_equal(fit_phases, 1.0))):
+        raise ValueError("Required: 0.0 <= `fit_phases` <= 1.0")
+    # Append the data to itself (tesselate) 2 times for total of 3 cycles.
+    (tess_phases, tess_fluxes, tess_fluxes_err) = (phases, fluxes, fluxes_err)
+    (tess_fit_phases, tess_fit_fluxes) = (fit_phases, fit_fluxes)
+    for begin_phase in xrange(0, 2):
+        tess_phases = \
+            np.append(tess_phases, np.add(phases, begin_phase + 1.0))
+        tess_fluxes = np.append(tess_fluxes, fluxes)
+        tess_fluxes_err = np.append(tess_fluxes_err, fluxes_err)
+        tess_fit_phases = \
+            np.append(tess_fit_phases, np.add(fit_phases, begin_phase + 1.0))
+        tess_fit_fluxes = np.append(tess_fit_fluxes, fit_fluxes)
+    # Plot tesselated light curve.
+    if legend:
+        (label_obs, label_fit) = ('observed', 'fit')
+    else:
+        (label_obs, label_fit) = (None, None)
+    plt_kwargs = dict(marker='.', linestyle='', linewidth=1)
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.errorbar(
-        np.append(times_phased, np.add(times_phased, 1.0)),
-        np.append(fluxes, fluxes),
-        np.append(fluxes_err, fluxes_err),
-        fmt='.k', ecolor='gray', linewidth=1)
-    ax.plot(
-        np.append(phases, np.add(phases, 1.0)),
-        np.append(fits_phased, fits_phased), color='blue', linewidth=2)
-    ax.set_title(("Phased light curve\n" +
-                  "with {num} Fourier terms fit").format(num=n_terms))
+        tess_phases, tess_fluxes, tess_fluxes_err, ecolor='gray',
+        label=label_obs, **plt_kwargs)
+    ax.plot(tess_fit_phases, tess_fit_fluxes, label=label_fit, **plt_kwargs)
+    if legend:
+        ax.legend(loc='upper left')
+    ax.set_title("Phased light curve")
     ax.set_xlabel("Orbital phase (decimal)")
     ax.set_ylabel("Flux ({unit})".format(unit=flux_unit))
     if return_ax:

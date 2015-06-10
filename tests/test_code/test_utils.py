@@ -43,7 +43,7 @@ def test_calc_period_limits(
 
 def test_plot_periodogram(
     periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
-    period_unit='seconds', flux_unit='relative', return_ax=True):
+    period_unit='seconds', flux_unit='relative', legend=True, return_ax=True):
     r"""Pytest for code/utils.py:
     plot_periodogram
     
@@ -51,7 +51,8 @@ def test_plot_periodogram(
     ax = \
       code.utils.plot_periodogram(
           periods=periods, powers=powers, xscale=xscale,
-          period_unit=period_unit, flux_unit=flux_unit, return_ax=return_ax)
+          period_unit=period_unit, flux_unit=flux_unit,
+          legend=legend, return_ax=return_ax)
     assert isinstance(ax, plt.Axes)
     return None
 
@@ -174,37 +175,37 @@ def test_calc_min_flux_time_cases():
     return None
 
 
-def test_calc_phased_times(
+def test_calc_phases(
     times=xrange(12), best_period=4, min_flux_time=1,
-    ref_phased_times=[3, 0, 1, 2]*3):
+    ref_phases=[0.75, 0.0, 0.25, 0.5]*3):
     r"""Pytest for code/utils.py:
-    calc_phased_times
+    calc_phases
 
     """
-    test_phased_times = \
-        code.utils.calc_phased_times(
+    test_phases = \
+        code.utils.calc_phases(
             times=times, best_period=best_period, min_flux_time=min_flux_time)
-    assert np.all(np.isclose(ref_phased_times, test_phased_times))
+    assert np.all(np.isclose(ref_phases, test_phases))
     return None
 
-# TODO: REDO BELOW HERE
 
 def test_plot_phased_light_curve(
     phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-    fits_phased=[1]*1000, times_phased=[0.004, 0.504]*2**6, fluxes=[0,1]*2**6,
-    fluxes_err=[1]*2**7, n_terms=1, flux_unit='relative', return_ax=True):
+    fluxes=[1]*1000, fluxes_err=[1]*1000,
+    fit_phases=[1]*1000, fit_fluxes=[1]*1000, flux_unit='relative',
+    legend=True, return_ax=True):
     r"""pytest style test for code.utils.plot_phased_light_curve
 
     """
     ax = \
         code.utils.plot_phased_light_curve(
-            phases=phases, fits_phased=fits_phased, times_phased=times_phased,
-            fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
-            flux_unit=flux_unit, return_ax=return_ax)
+            phases=phases, fluxes=fluxes, fluxes_err=fluxes_err,
+            fit_phases=fit_phases, fit_fluxes=fit_fluxes, flux_unit=flux_unit,
+            legend=legend, return_ax=return_ax)
     assert isinstance(ax, plt.Axes)
     return None
 
-
+# TODO: REDO BELOW HERE
 def test_refine_best_period(
     times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7, best_period=2.0,
     n_terms=1, show_plots=False, period_unit='seconds', flux_unit='relative',
