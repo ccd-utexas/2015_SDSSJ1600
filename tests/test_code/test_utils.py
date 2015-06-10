@@ -17,6 +17,7 @@ import sys
 sys.path.insert(0, '.') # Test the code in this repository.
 # Import installed packages.
 import astroML.time_series as astroML_ts
+import binstarsolver as bss
 import gatspy.datasets as gatspy_data
 import gatspy.periodic as gatspy_per
 import matplotlib.pyplot as plt
@@ -62,8 +63,8 @@ def test_calc_sig_levels_cases():
     """
     # Define function for testing cases.
     def test_calc_sig_levels(
-        model, ref_sig_periods, ref_sig_powers, sigs=(95.0, 99.0), num_periods=10,
-        num_shuffles=100):
+        model, ref_sig_periods, ref_sig_powers, sigs=(95.0, 99.0),
+        num_periods=10, num_shuffles=100):
         r"""Pytest for code/utils.py:
         calc_sig_levels
 
@@ -73,7 +74,8 @@ def test_calc_sig_levels_cases():
                 model=model, sigs=sigs, num_periods=num_periods,
                 num_shuffles=num_shuffles)
         assert np.all(np.isclose(ref_sig_periods, test_sig_periods))
-        for (ref_sig_power, test_sig_power) in zip(ref_sig_powers, test_sig_powers):
+        for (ref_sig_power, test_sig_power) in \
+            zip(ref_sig_powers, test_sig_powers):
             assert np.all(np.isclose(ref_sig_power, test_sig_power))
         return None
     # Test adapted from
@@ -102,6 +104,72 @@ def test_calc_sig_levels_cases():
     test_calc_sig_levels(
         model=model, sigs=sigs, num_periods=10, num_shuffles=100,
         ref_sig_periods=ref_sig_periods, ref_sig_powers=ref_sig_powers)
+    # TODO: insert additional test cases here.
+    return None
+
+
+def test_calc_min_flux_time_cases():
+    r"""Pytest cases for code/utils.py:
+    calc_sig_levels
+
+    """
+    # Define function for testing cases.
+    def test_calc_min_flux_time(
+        model, filt, ref_min_time, best_period=None,
+        lwr_time_bound=None, upr_time_bound=None, tol=0.1, maxiter=10):
+        r"""Pytest for code/utils.py:
+        calc_min_flux_time
+
+        """
+        test_min_time = \
+            code.utils.calc_min_flux_time(
+                model=model, filt=filt, best_period=best_period,
+                lwr_time_bound=lwr_time_bound, upr_time_bound=upr_time_bound,
+                tol=tol, maxiter=maxiter)
+        assert np.isclose(ref_min_time, test_min_time)
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    fluxes_rel = np.empty_like(mags)
+    fluxes_rel_err = np.empty_like(mags_err)
+    for filt in np.unique(filts):
+        tfmask = (filt == filts)
+        fluxes_rel[tfmask] = \
+            map(
+                lambda mag_1: \
+                    bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=np.median(mags[tfmask])),
+                mags[tfmask])
+        fluxes_rel_err[tfmask] = \
+            map(
+                lambda mag_1, mag_2: \
+                    abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=mag_2)),
+                np.add(mags[tfmask], mags_err[tfmask]),
+                mags[tfmask])
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    best_period = rrlyrae.get_metadata(lcid)['P']
+    model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+    min_flux_time_init = \
+        code.utils.calc_min_flux_time(
+            model=model, filt='z', best_period=best_period, tol=0.1, maxiter=10)
+    for (filt, ref_min_time) in \
+        zip(
+            ['u', 'g', 'r', 'i', 'z'],
+            [0.370657590606, 0.366563989108, 0.375194445097, 0.377970590837,
+             0.378704402065]):
+        time_window_halfwidth = 0.1 * best_period
+        test_calc_min_flux_time(
+            model=model, filt=filt, ref_min_time=ref_min_time,
+            best_period=best_period,
+            lwr_time_bound=min_flux_time_init - time_window_halfwidth,
+            upr_time_bound=min_flux_time_init + time_window_halfwidth,
+            tol=1e-5, maxiter=10)
     # TODO: insert additional test cases here.
     return None
 

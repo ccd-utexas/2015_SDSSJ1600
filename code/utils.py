@@ -213,11 +213,11 @@ def calc_sig_levels(
     return (sig_periods, sig_powers)
 
 
-# TODO: make pytest
 def calc_min_flux_time(
-    model, filt, best_period=None, tol=0.1, maxiter=10):
+    model, filt, best_period=None, lwr_time_bound=None, upr_time_bound=None,
+    tol=0.1, maxiter=10):
     r"""Calculate the time at which the minimum flux occurs. Use to define a
-    phase offset so that phase=0 at minimum flux.
+    phase offset in time units so that phase=0 at minimum flux.
 
     Parameters
     ----------
@@ -230,6 +230,12 @@ def calc_min_flux_time(
         Period of light curve model that best represents the time series data.
         Unit is same as times in `model.t`, e.g. seconds.
         If `None` (default), uses `model.best_period`.
+    lwr_time_bound : {None}, float, optional
+    upr_time_bound : {None}, float, optional
+        Lower and upper bounds for finding minimum flux. Use if global minimum
+        for one filter is a local minimum for another filter.
+        Unit is same as times in `model.t`, e.g. seconds.
+        Required: 0.0 <= lwr_time_bound < upr_time_bound <= best_period
     tol : {0.1}, float, optional
         Tolerance for maximum permissible uncertainty in solved `min_time`.
         Unit is same as times in `model.t`, e.g. seconds.
@@ -252,11 +258,17 @@ def calc_min_flux_time(
     - To create a phased light curve with minimum flux at phase=0:
         Instead of `plt.plot(times % best_period, fluxes)`
         do `plt.plot((times - min_flux_time) % best_period, fluxes)`
+    - A global minimum in a light curve for one filter may be a local minimum
+        in the light curve for another filter. Example light curve: [1]_
 
     Raises
     ------
+    ValueError :
+        - Raised if not
+            0.0 <= lwr_time_bound < upr_time_bound <= 2.0*best_period
     warnings.warn :
-        - Raised if solutio for `min_time` did not converge to within tolerance.
+        - Raised if solution for `min_time` did not converge to within
+            tolerance.
     AssertionError :
         - Raised if not 0 <= `lhs_time_init` <= `min_time` <= `rhs_time_init`
             <= `best_period`, where `lhs_time_init` and `rhs_time_init` are
@@ -265,12 +277,33 @@ def calc_min_flux_time(
             is the initial bound for global minimum flux and `min_flux` is the
             global minimum flux.
 
+    References
+    ----------
+    .. [1] https://github.com/astroML/gatspy/blob/master/examples/
+           MultiBand.ipynb
+
     """
     # Check input.
     if best_period is None:
         best_period = model.best_period
+    if lwr_time_bound is None:
+        start = 0.0
+    else:
+        if not (0.0 <= lwr_time_bound):
+            raise ValueError("Required: 0.0 <= `lwr_time_bound`")
+        start = lwr_time_bound
+    if upr_time_bound is None:
+        stop = best_period
+    else:
+        if not (upr_time_bound <= best_period):
+            raise ValueError("Required: `upr_time_bound` <= `best_period`")
+        stop = upr_time_bound
+    if (lwr_time_bound is not None) and (upr_time_bound is not None):
+        if not (lwr_time_bound < upr_time_bound):
+            raise ValueError("Required: `lwr_time_bound` < `upr_time_bound`")
+    # Compute initial phased times and fit fluxes.
     phased_times_fit = \
-        np.linspace(start=0.0, stop=best_period, num=1000, endpoint=False)
+        np.linspace(start=start, stop=stop, num=1000, endpoint=False)
     phased_fluxes_fit = \
         model.predict(
             t=phased_times_fit, filts=[filt]*1000, period=best_period)
