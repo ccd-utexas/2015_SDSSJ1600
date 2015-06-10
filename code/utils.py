@@ -239,16 +239,16 @@ def calc_min_flux_time(
         Unit is same as times in `model.t`, e.g. seconds.
         Required: 0.0 <= lwr_time_bound < upr_time_bound <= best_period
     tol : {0.1}, float, optional
-        Tolerance for maximum permissible uncertainty in solved `min_time`.
+        Tolerance for maximum permissible uncertainty in solved `min_flux_time`.
         Unit is same as times in `model.t`, e.g. seconds.
     maxiter : {10}, int, optional
-        Maximum number of iterations permitted in solving `min_time`.
+        Maximum number of iterations permitted in solving `min_flux_time`.
         Example: For `best_period` = 86400 seconds and `tol` = 0.1 seconds,
-        `min_time` is typically solved to within `tol` by ~5 iterations.
+        `min_flux_time` is typically solved to within `tol` by ~5 iterations.
 
     Returns
     -------
-    min_time : float
+    min_flux_time : float
         Time at which minimum flux occurs.
 
     See Also
@@ -267,12 +267,12 @@ def calc_min_flux_time(
     ------
     ValueError :
         - Raised if not
-            0.0 <= lwr_time_bound < upr_time_bound <= 2.0*best_period
+            0.0 <= lwr_time_bound < upr_time_bound <= best_period
     warnings.warn :
-        - Raised if solution for `min_time` did not converge to within
+        - Raised if solution for `min_flux_time` did not converge to within
             tolerance.
     AssertionError :
-        - Raised if not 0 <= `lhs_time_init` <= `min_time` <= `rhs_time_init`
+        - Raised if not 0 <= `lhs_time_init` <= `min_flux_time` <= `rhs_time_init`
             <= `best_period`, where `lhs_time_init` and `rhs_time_init` are
             initial bounds for time of global minimum flux.
         - Raised if not `min_flux` <= `min_flux_init`, where `min_flux_init`
@@ -327,7 +327,7 @@ def calc_min_flux_time(
     (lhs_idx, rhs_idx) = (min_idx - 1, min_idx + 1)
     (lhs_time, lhs_flux) = \
         (phased_times_fit[lhs_idx], phased_fluxes_fit[lhs_idx])
-    (min_time, min_flux) = \
+    (min_flux_time, min_flux) = \
         (phased_times_fit[min_idx], phased_fluxes_fit[min_idx])
     (rhs_time, rhs_flux) = \
         (phased_times_fit[rhs_idx], phased_fluxes_fit[rhs_idx])
@@ -346,7 +346,7 @@ def calc_min_flux_time(
         (lhs_subidx, rhs_subidx) = (min_subidx - 1, min_subidx + 1)
         (lhs_time, lhs_flux) = \
             (phased_times_subfit[lhs_subidx], phased_fluxes_subfit[lhs_subidx])
-        (min_time, min_flux) = \
+        (min_flux_time, min_flux) = \
             (phased_times_subfit[min_subidx], phased_fluxes_subfit[min_subidx])
         (rhs_time, rhs_flux) = \
             (phased_times_subfit[rhs_subidx], phased_fluxes_subfit[rhs_subidx])
@@ -356,22 +356,22 @@ def calc_min_flux_time(
     if (itol > tol) and (inum >= maxiter):
         warnings.warn(
             "\n" +
-            "Solution for `min_time` did not converge to within tolerance.\n" +
+            "Solution for `min_flux_time` did not converge to within tolerance.\n" +
             "Input parameters:\n" +
             fmt_parameters)
     # Check that program executed correctly.
     if not (
-        (0 <= lhs_time_init) and (lhs_time_init <= min_time) and
-        (min_time <= rhs_time_init) and (rhs_time_init <= best_period)):
+        (0 <= lhs_time_init) and (lhs_time_init <= min_flux_time) and
+        (min_flux_time <= rhs_time_init) and (rhs_time_init <= best_period)):
         raise AssertionError(
             ("Program error.\n" +
-             "Required: 0 <= `lhs_time_init` <= `min_time`" +
+             "Required: 0 <= `lhs_time_init` <= `min_flux_time`" +
              " <= `rhs_time_init` <= `best_period`:\n" +
              "lhs_time_init = {lhi}\n" +
-             "min_time = {mt}\n" +
+             "min_flux_time = {mt}\n" +
              "rhs_time_init = {rhi}\n" +
              "best_period = {bp}").format(
-                lhi=lhs_time_init, mt=min_time,
+                lhi=lhs_time_init, mt=min_flux_time,
                 rhi=rhs_time_init, bp=best_period))
     if not min_flux <= min_flux_init:
         raise AssertionError(
@@ -380,12 +380,45 @@ def calc_min_flux_time(
              "min_flux = {mf}\n" +
              "min_flux_init = {mfi}").format(
                 mf=min_flux, mfi=min_flux_init))
-    return min_time
+    return min_flux_time
 
 
+def calc_phased_times(times, best_period, min_flux_time=0.0):
+    r"""Calculate phases of a time series in time units.
+
+    Parameters
+    ----------
+    times : numpy.ndarray
+        1D array of time coordinates. Units are time, e.g. seconds or days.
+    best_period : float
+        Period that best represents the time series. Unit is same as `times`.
+    min_flux_time : {0.0}, float, optional
+        Time at which minimum flux occurs. Unit is same as `times`.
+        Required: 0.0 <= min_flux_time <= best_period
+
+    Returns
+    -------
+    phased_times : numpy.ndarray
+        `times` phased so that 0 <= `phased_times` <= `best_period`
+        `numpy.shape(phased_times) == numpy.shape(times)`
+
+    See Also
+    --------
+    calc_min_flux_time
+
+    """
+    # Check input.
+    if not ((0.0 <= min_flux_time) and (min_flux_time <= best_period)):
+        raise ValueError("Required: 0.0 <= `min_flux_time` <= `best_period`")
+    # Calculate phased times.
+    phased_times = np.mod(np.subtract(times, min_flux_time), best_period)
+    return phased_times
+
+
+# TODO: REDO BELOW HERE
 def plot_phased_light_curve(
-        phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
-        flux_unit='relative', return_ax=False):
+    phases, fits_phased, times_phased, fluxes, fluxes_err, n_terms=1,
+    flux_unit='relative', return_ax=False):
     r"""Plot a phased light curve. Convenience function for plot formats
     from [1]_.
 

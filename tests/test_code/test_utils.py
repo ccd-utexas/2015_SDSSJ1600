@@ -110,23 +110,23 @@ def test_calc_sig_levels_cases():
 
 def test_calc_min_flux_time_cases():
     r"""Pytest cases for code/utils.py:
-    calc_sig_levels
+    calc_min_flux_time
 
     """
     # Define function for testing cases.
     def test_calc_min_flux_time(
-        model, filt, ref_min_time, best_period=None,
+        model, filt, ref_min_flux_time, best_period=None,
         lwr_time_bound=None, upr_time_bound=None, tol=0.1, maxiter=10):
         r"""Pytest for code/utils.py:
         calc_min_flux_time
 
         """
-        test_min_time = \
+        test_min_flux_time = \
             code.utils.calc_min_flux_time(
                 model=model, filt=filt, best_period=best_period,
                 lwr_time_bound=lwr_time_bound, upr_time_bound=upr_time_bound,
                 tol=tol, maxiter=maxiter)
-        assert np.isclose(ref_min_time, test_min_time)
+        assert np.isclose(ref_min_flux_time, test_min_flux_time)
         return None
     # Test adapted from
     # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
@@ -158,14 +158,14 @@ def test_calc_min_flux_time_cases():
     min_flux_time_init = \
         code.utils.calc_min_flux_time(
             model=model, filt='z', best_period=best_period, tol=0.1, maxiter=10)
-    for (filt, ref_min_time) in \
+    for (filt, ref_min_flux_time) in \
         zip(
             ['u', 'g', 'r', 'i', 'z'],
             [0.370657590606, 0.366563989108, 0.375194445097, 0.377970590837,
              0.378704402065]):
         time_window_halfwidth = 0.1 * best_period
         test_calc_min_flux_time(
-            model=model, filt=filt, ref_min_time=ref_min_time,
+            model=model, filt=filt, ref_min_flux_time=ref_min_flux_time,
             best_period=best_period,
             lwr_time_bound=min_flux_time_init - time_window_halfwidth,
             upr_time_bound=min_flux_time_init + time_window_halfwidth,
@@ -174,100 +174,20 @@ def test_calc_min_flux_time_cases():
     return None
 
 
-# TODO: REDO BELOW HERE
-
-def test_calc_periodogram(
-    times=[1,2,3,4,5,6,7,8],
-    fluxes=[0,1,0,1,0,1,0,1],
-    fluxes_err=[1,1,1,1,1,1,1,1],
-    min_period=None, max_period=None, num_periods=None, sigs=(95.0, 99.0),
-    num_bootstraps=100, show_periodogram=False, period_unit='seconds',
-    flux_unit='relative',
-    ref_periods=[3.5, 3.11111111, 2.8, 2.54545455,
-                 2.33333333, 2.15384615, 2.0],
-    ref_powers=[0.05615773, 0.09897668, 0.02777778, 0.06395519,
-                0.68555962, 0.98455515, 1.45655044],
-    ref_sigs_powers=[(95.0, 0.92877340237699546),
-                     (99.0, 1.0210555725004953)]):
+def test_calc_phased_times(
+    times=xrange(12), best_period=4, min_flux_time=1,
+    ref_phased_times=[3, 0, 1, 2]*3):
     r"""Pytest for code/utils.py:
-    calc_periodogram
+    calc_phased_times
 
     """
-    (test_periods, test_powers, test_sigs_powers) = \
-        code.utils.calc_periodogram(
-            times=times, fluxes=fluxes, fluxes_err=fluxes_err,
-            min_period=min_period, max_period=max_period,
-            num_periods=num_periods, sigs=sigs, num_bootstraps=num_bootstraps,
-            show_periodogram=show_periodogram, period_unit=period_unit,
-            flux_unit=flux_unit)
-    assert np.all(np.isclose(ref_periods, test_periods))
-    assert np.all(np.isclose(ref_powers, test_powers))
-    assert np.all(np.isclose(ref_sigs_powers, test_sigs_powers))
+    test_phased_times = \
+        code.utils.calc_phased_times(
+            times=times, best_period=best_period, min_flux_time=min_flux_time)
+    assert np.all(np.isclose(ref_phased_times, test_phased_times))
     return None
 
-
-def test_select_sig_periods_powers(
-    peak_periods=[1, 2, 3], peak_powers=[0.1, 0.2, 0.3], cutoff_power=0.15,
-    ref_sig_periods=[2, 3], ref_sig_powers=[0.2, 0.3]):
-    r"""pytest style test for code.select_sig_periods_powers
-
-    """
-    (test_sig_periods, test_sig_powers) = \
-        code.utils.select_sig_periods_powers(
-            peak_periods=peak_periods, peak_powers=peak_powers,
-            cutoff_power=cutoff_power)
-    assert np.all(np.isclose(ref_sig_periods, test_sig_periods))
-    assert np.all(np.isclose(ref_sig_powers, test_sig_powers))
-    return None
-
-
-def test_calc_best_period(
-    times=[1,2,3,4,5,6,7,8],
-    fluxes=[0,1,0,1,0,1,0,1],
-    fluxes_err=[1,1,1,1,1,1,1,1],
-    candidate_periods=[2.15384615, 2.], n_terms=1, show_periodograms=False,
-    show_summary_plots=False, period_unit='seconds', flux_unit='relative',
-    ref_best_period=2.0):
-    r"""pytest style test for code.utils.calc_best_period
-
-    """
-    test_best_period = \
-        code.utils.calc_best_period(
-            times=times, fluxes=fluxes, fluxes_err=fluxes_err,
-            candidate_periods=candidate_periods, n_terms=n_terms,
-            show_periodograms=show_periodograms,
-            show_summary_plots=show_summary_plots,
-            period_unit=period_unit, flux_unit=flux_unit)
-    assert np.isclose(test_best_period, ref_best_period)
-    return None
-
-
-def test_calc_num_terms(
-    times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7,
-    best_period=2.0, max_n_terms=2, show_periodograms=False,
-    show_summary_plots=False, period_unit='seconds', flux_unit='relative',
-    ref_best_n_terms=1,
-    ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-    ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
-    r"""pytest style test for code.utils.calc_num_terms
-
-    """
-    (test_best_n_terms, test_phases, test_fits_phased, test_times_phased) = \
-        code.utils.calc_num_terms(
-            times=times, fluxes=fluxes, fluxes_err=fluxes_err,
-            best_period=best_period, max_n_terms=max_n_terms,
-            show_periodograms=show_periodograms,
-            show_summary_plots=show_summary_plots, period_unit=period_unit,
-            flux_unit=flux_unit)
-    assert ref_best_n_terms == test_best_n_terms
-    assert np.all(np.isclose(ref_phases, test_phases))
-    if ref_fits_phased is None:
-        assert len(ref_phases) == len(test_fits_phased)
-    else:
-        assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
-    assert np.all(np.isclose(ref_times_phased, test_times_phased))
-    return None
-
+# TODO: REDO BELOW HERE
 
 def test_plot_phased_light_curve(
     phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
