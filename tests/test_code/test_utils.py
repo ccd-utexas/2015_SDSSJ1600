@@ -190,11 +190,12 @@ def test_calc_phases(
 
 
 def test_plot_phased_light_curve(
-    phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-    fluxes=[1]*1000, fluxes_err=[1]*1000,
-    fit_phases=[1]*1000, fit_fluxes=[1]*1000, flux_unit='relative',
+    phases=np.linspace(start=0, stop=1, num=100, endpoint=False),
+    fluxes=[1]*100, fluxes_err=[1]*100,
+    fit_phases=[1]*100, fit_fluxes=[1]*100, flux_unit='relative',
     legend=True, return_ax=True):
-    r"""pytest style test for code.utils.plot_phased_light_curve
+    r"""Pytest for code/utils.py:
+    plot_phased_light_curve
 
     """
     ax = \
@@ -205,49 +206,28 @@ def test_plot_phased_light_curve(
     assert isinstance(ax, plt.Axes)
     return None
 
+
+def test_calc_residual_fluxes(
+    phases=np.linspace(start=0, stop=1, num=100, endpoint=False),
+    fluxes=[0, 1, 1, 1]*25,
+    fit_phases=np.linspace(start=0, stop=1, num=200, endpoint=False),
+    fit_fluxes=[1]*200,
+    ref_resampled_fit_fluxes=[1]*100, ref_residual_fluxes=[-1, 0, 0, 0]*25):
+    r"""Pytest for code/utils.py:
+    calc_flux_residual_fluxes
+
+    """
+    (test_resampled_fit_fluxes, test_residual_fluxes) = \
+        code.utils.calc_residual_fluxes(
+            phases=phases, fluxes=fluxes,
+            fit_phases=fit_phases, fit_fluxes=fit_fluxes)
+    assert \
+        np.all(np.isclose(ref_resampled_fit_fluxes, test_resampled_fit_fluxes))
+    assert \
+        np.all(np.isclose(ref_residual_fluxes, test_residual_fluxes))
+    return None
+
 # TODO: REDO BELOW HERE
-def test_refine_best_period(
-    times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7, best_period=2.0,
-    n_terms=1, show_plots=False, period_unit='seconds', flux_unit='relative',
-    ref_best_period=2.0,
-    ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-    ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
-    r"""pytest style test for code.utils.refine_best_period
-
-    """
-    (test_best_period, test_phases, test_fits_phased,
-     test_times_phased, test_multi_term_fit) = \
-        code.utils.refine_best_period(
-            times=range(2**7), fluxes=[0,1]*2**6,
-            fluxes_err=[1]*2**7, best_period=2.0, n_terms=1,
-            show_plots=False, period_unit='seconds', flux_unit='relative')
-    assert ref_best_period == test_best_period
-    assert np.all(np.isclose(ref_phases, test_phases))
-    if ref_fits_phased is None:
-        assert len(ref_phases) == len(test_fits_phased)
-    else:
-        assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
-    assert np.all(np.isclose(ref_times_phased, test_times_phased))
-    assert isinstance(test_multi_term_fit, astroML_ts.MultiTermFit)
-    return None
-
-
-def test_calc_flux_fits_residuals(
-    phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-    fits_phased=[1]*1000, times_phased=[0.004, 0.504]*2**6, fluxes=[0,1]*2**6,
-    ref_fit_fluxes=[1]*2**7, ref_residuals=[-1,0]*2**6):
-    r"""pytest style test for code.utils.calc_flux_fits_residuals
-
-    """
-    (test_fit_fluxes, test_residuals) = \
-        code.utils.calc_flux_fits_residuals(
-            phases=phases, fits_phased=fits_phased,
-            times_phased=times_phased, fluxes=fluxes)
-    assert np.all(np.isclose(ref_fit_fluxes, test_fit_fluxes))
-    assert np.all(np.isclose(ref_residuals, test_residuals))
-    return None
-
-
 # Seed random number generator for reproducibility.
 np.random.seed(0)
 def test_calc_z1_z2(

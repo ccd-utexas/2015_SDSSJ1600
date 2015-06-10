@@ -545,171 +545,43 @@ def plot_phased_light_curve(
     return return_obj
 
 
-def refine_best_period(
-        times, fluxes, fluxes_err, best_period, n_terms=6, show_plots=True,
-        period_unit='seconds', flux_unit='relative'):
-    r"""Refine the best period to a higher precision from a multi-term
-    generalized Lomb-Scargle periodogram. Convenience function for methods
-    from [1]_.
-       
-    Parameters
-    ----------
-    times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time,
-        e.g. seconds or days.
-    fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux,
-        e.g. relative flux or magnitudes.
-    fluxes_err : numpy.ndarray
-        1D array of errors for fluxes. Unit is same as `fluxes`.
-    best_period : float
-        Period that best represents the data. Unit is same as `times`.
-    n_terms : {6}, int, optional
-        Number of Fourier terms to fit the light curve. To fit eclipses well
-        often requires ~6 terms, from section 10.3.3 of [1]_.
-    show_plots : {True, False}, bool, optional
-        If `True`, display plots of periodograms and phased light curves.
-    period_unit : {'seconds'}, string, optional
-    flux_unit : {'relative'}, string, optional
-        Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label a
-        periodogram x-axis with "Period (seconds)" and label a periodogram
-        y-axis with
-        "Lomb-Scargle Power Spectral Density\n
-        (from flux in relative, ang. freq. in 2*pi/seconds)".
-
-    Returns
-    -------
-    refined_period : float
-        Refined period. Unit is same as `times`.
-    phases : ndarray
-        The phase coordinates of the best-fit light curve.
-        Unit is decimal orbital phase.
-    fits_phased : ndarray
-        The relative fluxes for the `phases` of the best-fit light curve.
-        Unit is same as `fluxes`.
-    times_phased : ndarray
-        The phases of the corresponding input `times`.
-        Unit is decimal orbital phase.
-    mtf : astroML.time_series.MultiTermFit
-        Instance of the `astroML.time_series.MultiTermFit` class
-        for the best fit model.
-
-    See Also
-    --------
-    calc_best_period, calc_num_terms
-
-    Notes
-    -----
-    -  Range around the best period is based on the angular frequency
-        resolution of the original data. Adopted from [2]_.
-        acquisition_time = max(times) - min(times)
-        omega_resolution = 2.0 * np.pi / acquisition_time
-        num_omegas = 2000 # chosen to balance fast computation with small range
-        anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-        # ensure sampling precision very high relative to data precision
-        sampling_precision = 0.01 
-        range_omega_halfwidth = \
-            ((num_omegas/2.0) * omega_resolution * anti_aliasing *
-             sampling_precision)
-    - Call after `calc_num_terms`.
-
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] http://zone.ni.com/reference/en-XX/help/372416A-01/svtconcepts/
-           fft_funda/
-    
-    """
-    # Calculate the multiterm periodogram and choose the best period
-    # from the maximal power.
-    acquisition_time = max(times) - min(times)
-    omega_resolution = 2.0 * np.pi / acquisition_time
-    num_omegas = 2000 # chosen to balance fast computation with medium range
-    anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    # ensure sampling precision very high relative to data precision
-    sampling_precision = 0.01 
-    range_omega_halfwidth = \
-      ((num_omegas/2.0) * omega_resolution * anti_aliasing *
-       sampling_precision)
-    max_period = 0.5 * acquisition_time
-    min_omega = 2.0 * np.pi / max_period
-    median_sampling_period = np.median(np.diff(times))
-    min_period = 2.0 * median_sampling_period
-    max_omega = 2.0 * np.pi / (min_period)
-    best_omega = 2.0 * np.pi / best_period
-    range_omegas = \
-        np.clip(
-            np.linspace(
-                start=best_omega - range_omega_halfwidth,
-                stop=best_omega + range_omega_halfwidth,
-                num=num_omegas, endpoint=True),
-            min_omega, max_omega)
-    range_periods = 2.0 * np.pi / range_omegas
-    range_powers = \
-        astroML_ts.multiterm_periodogram(
-            t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
-            n_terms=n_terms)
-    refined_omega = range_omegas[np.argmax(range_powers)]
-    refined_period = 2.0 * np.pi / refined_omega
-    mtf = astroML_ts.MultiTermFit(omega=refined_omega, n_terms=n_terms)
-    mtf.fit(t=times, y=fluxes, dy=fluxes_err)
-    (phases, fits_phased, times_phased) = \
-        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
-    if show_plots:
-        plot_periodogram(
-            periods=range_periods, powers=range_powers, xscale='linear',
-            n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
-            return_ax=False)
-        plot_phased_light_curve(
-            phases=phases, fits_phased=fits_phased, times_phased=times_phased,
-            fluxes=fluxes, fluxes_err=fluxes_err, n_terms=n_terms,
-            flux_unit=flux_unit, return_ax=False)
-        print("Refined period: {per} seconds".format(per=refined_period))
-    return (refined_period, phases, fits_phased, times_phased, mtf)
-
-
-def calc_flux_fits_residuals(
-    phases, fits_phased, times_phased, fluxes):
-    r"""Calculate the fluxes and their residuals at phased times from a fit
+def calc_residual_fluxes(
+    phases, fluxes, fit_phases, fit_fluxes):
+    r"""Calculate the residual fluxes at phased time coordinates from a fit
     to a light curve.
     
     Parameters
     ----------
     phases : numpy.ndarray
-        The phase coordinates of the best-fit light curve.
-        Unit is decimal orbital phase.
-        Required: numpy.shape(phases) == numpy.shape(fits_phased)
-    fits_phased : numpy.ndarray
-        The relative fluxes for the `phases` of the best-fit light curve.
-        Unit is relative flux.
-        Required: numpy.shape(phases) == numpy.shape(fits_phased)
-    times_phased : numpy.ndarray
-        The phases coordinates of the `fluxes`. Unit is decimal orbital phase.
-        Required: numpy.shape(times_phased) == numpy.shape(fluxes)
+        1D array of phased time coordinates of observed data.
+        Units are decimal orbital phase.
     fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux,
-        e.g. relative flux or magnitudes.
-        Required: numpy.shape(times_phased) == numpy.shape(fluxes)
+        1D array of fluxes corresponding to `phases`.
+        Units are relative integrated flux.
+    fit_phases : numpy.ndarray
+        1D array of phased time coordinates of the best-fit light curve.
+        Units are same as `phases`.
+    fit_fluxes : numpy.ndarray
+        1D array of fluxes corresponding to `fit_phases`.
+        Units are same as `fluxes`.
 
     Returns
     -------
-    fit_fluxes : numpy.ndarray
-        1D array of `fits_phased` resampled at `times_phased`.
-        numpy.shape(fluxes_fit) == numpy.shape(fluxes)
-    residuals : numpy.ndarray
-        1D array of the differences between `fluxes` and `fits_phased`
-        resampled at `times_phased`:
-        residuals = fluxes - fits_phased_resampled
-        numpy.shape(residuals) == numpy.shape(fluxes)
+    resampled_fit_fluxes : numpy.ndarray
+        1D array of `fit_fluxes` resampled at `phases`.
+        `numpy.shape(resampled_fit_fluxes) == numpy.shape(fluxes)`
+    residual_fluxes : numpy.ndarray
+        1D array of the differences between `fluxes` and `fit_fluxes`
+        resampled at `phases`:
+        `residual_fluxes = fluxes - resampled_fit_fluxes`
+        `numpy.shape(residual_fluxes) == numpy.shape(fluxes)`
 
     """
-    fit_fluxes = np.interp(x=times_phased, xp=phases, fp=fits_phased)
-    residuals = np.subtract(fluxes, fit_fluxes)
-    return (fit_fluxes, residuals)
+    resampled_fit_fluxes = np.interp(x=phases, xp=fit_phases, fp=fit_fluxes)
+    residual_fluxes = np.subtract(fluxes, resampled_fit_fluxes)
+    return (resampled_fit_fluxes, residual_fluxes)
 
-
+# TODO: REDO BELOW HERE
 def calc_z1_z2(
     dist):
     r"""Calculate a rank-based measure of Gaussianity in the core
