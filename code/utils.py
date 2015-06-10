@@ -175,6 +175,8 @@ def calc_sig_levels(
 
     Notes
     -----
+    - Significance levels are calculated periods within
+        `model.optimizer.period_range`
     - For a given period, a power is "signficant to the 99th percentile" if
         that power is greater than 99% of all other powers due to noise at that
         period. The noise is modeled by shuffling the time series.
