@@ -190,6 +190,20 @@ def test_calc_phases(
     return None
 
 
+def test_calc_next_phase0_time(
+    time=5.0, phase=0.5, best_period=10,
+    ref_next_phase0_time=10.0):
+    r"""Pytest for code/utils.py:
+    calc_next_phase0_time
+
+    """
+    test_next_phase_time = \
+        code.utils.calc_next_phase0_time(
+            time=time, phase=phase, best_period=best_period)
+    assert np.isclose(ref_next_phase0_time, test_next_phase_time)
+    return None
+
+
 def test_plot_phased_light_curve(
     phases=np.linspace(start=0, stop=1, num=100, endpoint=False),
     fluxes=[1]*100, fluxes_err=[1]*100,
@@ -257,42 +271,6 @@ def test_calc_residual_fluxes_cases():
     return None
 
 # TODO: REDO BELOW HERE
-def test_plot_phased_histogram(
-    hist_phases=[0.1, 0.4, 0.6, 0.9], hist_fluxes=[0.5, 1.0, 0.75, 1.0],
-    hist_fluxes_err=[0.05]*4,
-    times_phased=np.linspace(start=0, stop=1, num=10, endpoint=False),
-    fluxes=[0.5, 0.5, 1.0, 1.0, 0.75, 0.75, 0.75, 1.0, 1.0, 0.5],
-    fluxes_err=[0.05]*10, flux_unit='relative', return_ax=False):
-    r"""pytest style test for code.utils.plot_phased_histogram
-
-    """
-    ax = \
-        code.utils.plot_phased_histogram(
-            hist_phases=hist_phases, hist_fluxes=hist_fluxes,
-            hist_fluxes_err=hist_fluxes_err,
-            times_phased=times_phased, fluxes=fluxes, fluxes_err=fluxes_err,
-            flux_unit='relative', return_ax=True)
-    assert isinstance(ax, plt.Axes)
-    return None
-
-def test_calc_phased_histogram(
-    times_phased=np.linspace(start=0, stop=1, num=10, endpoint=False),
-    fluxes=[0.5, 0.5, 1.0, 1.0, 0.75, 0.75, 0.75, 1.0, 1.0, 0.5],
-    fluxes_err=[0.05]*10, flux_unit='relative', show_plot=False,
-    ref_hist_phases=[0.15, 0.35, 0.65, 0.85],
-    ref_hist_fluxes=[ 0.5, 1., 0.75, 1.], ref_hist_fluxes_err=[0., 0., 0., 0.]):
-    r"""pytest style test for code.utils.calc_phased_histogram
-
-    """
-    (test_hist_phases, test_hist_fluxes, test_hist_fluxes_err) = \
-        code.utils.calc_phased_histogram(
-            times_phased=times_phased, fluxes=fluxes, fluxes_err=fluxes_err,
-            flux_unit=flux_unit, show_plot=show_plot)
-    assert np.all(np.isclose(ref_hist_phases, test_hist_phases))
-    assert np.all(np.isclose(ref_hist_fluxes, test_hist_fluxes))
-    assert np.all(np.isclose(ref_hist_fluxes_err, test_hist_fluxes_err))
-    return None
-
 
 def test_read_quants_gianninas(
     fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
