@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Code to reproduce Harrold et al 2015 on SDSS J160036.83+272117.8.
+r"""Code to reproduce Harrold et al 2015 on SDSS J160036.83+272117.8.
 
 Notes
 -----
