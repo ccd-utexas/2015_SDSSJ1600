@@ -278,13 +278,13 @@ def calc_min_flux_time(
 
     Raises
     ------
-    ValueError :
+    ValueError
         - Raised if not
             0.0 <= lwr_time_bound < upr_time_bound <= best_period
-    warnings.warn :
+    warnings.warn
         - Raised if solution for `min_flux_time` did not converge to within
             tolerance.
-    AssertionError :
+    AssertionError
         - Raised if not 0 <= `lhs_time_init` <= `min_flux_time` <= `rhs_time_init`
             <= `best_period`, where `lhs_time_init` and `rhs_time_init` are
             initial bounds for time of global minimum flux.
@@ -422,7 +422,7 @@ def calc_phases(times, best_period, min_flux_time=0.0):
 
     Raises
     ------
-    ValueError :
+    ValueError
         - Raised if not 0.0 <= `min_flux_time` <= best_period.
 
     """
@@ -484,7 +484,7 @@ def plot_phased_light_curve(
 
     Raises
     ------
-    ValueError :
+    ValueError
         - Raised if not 0.0 <= {`phases`, `fit_phases`} <= 1.0
     
     Notes
@@ -567,19 +567,23 @@ def calc_residual_fluxes(
 
     Returns
     -------
-    resampled_fit_fluxes : numpy.ndarray
-        1D array of `fit_fluxes` resampled at `phases`.
-        `numpy.shape(resampled_fit_fluxes) == numpy.shape(fluxes)`
     residual_fluxes : numpy.ndarray
         1D array of the differences between `fluxes` and `fit_fluxes`
         resampled at `phases`:
         `residual_fluxes = fluxes - resampled_fit_fluxes`
         `numpy.shape(residual_fluxes) == numpy.shape(fluxes)`
+    resampled_fit_fluxes : numpy.ndarray
+        1D array of `fit_fluxes` resampled at `phases`.
+        `numpy.shape(resampled_fit_fluxes) == numpy.shape(fluxes)`
 
     """
-    resampled_fit_fluxes = np.interp(x=phases, xp=fit_phases, fp=fit_fluxes)
+    # NOTE: `numpy.interp` requires that `xp` is monotonically increasing.
+    (sorted_fit_phases, sorted_fit_fluxes) = \
+        zip(*sorted(zip(fit_phases, fit_fluxes), key=lambda tup: tup[0]))
+    resampled_fit_fluxes = \
+        np.interp(x=phases, xp=sorted_fit_phases, fp=sorted_fit_fluxes)
     residual_fluxes = np.subtract(fluxes, resampled_fit_fluxes)
-    return (resampled_fit_fluxes, residual_fluxes)
+    return (residual_fluxes, resampled_fit_fluxes)
 
 # TODO: REDO BELOW HERE
 def calc_z1_z2(
@@ -611,7 +615,7 @@ def calc_z1_z2(
         sigmaG = sigmaG(dist) = rank_based_standard_deviation(dist) (from [1]_)
     - Interpretation:
         For z1 = 1.0, the probability of a true Gaussian distribution also with
-        z1 > 1.0 is ~32% and is equivalent to a two-tailed p-value |z| > 1.0.
+        z1 > 1.0 is ~32% and is equivalent to a two-tailed p-value |z1| > 1.0.
         The same is true for z2.
     
     References

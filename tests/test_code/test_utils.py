@@ -12,6 +12,7 @@ Tests are executed using pytest.
 # Import standard packages.
 from __future__ import absolute_import, division, print_function
 import collections
+import copy
 import StringIO
 import sys
 sys.path.insert(0, '.') # Test the code in this repository.
@@ -207,41 +208,55 @@ def test_plot_phased_light_curve(
     return None
 
 
-def test_calc_residual_fluxes(
-    phases=np.linspace(start=0, stop=1, num=100, endpoint=False),
-    fluxes=[0, 1, 1, 1]*25,
-    fit_phases=np.linspace(start=0, stop=1, num=200, endpoint=False),
-    fit_fluxes=[1]*200,
-    ref_resampled_fit_fluxes=[1]*100, ref_residual_fluxes=[-1, 0, 0, 0]*25):
-    r"""Pytest for code/utils.py:
-    calc_flux_residual_fluxes
+def test_calc_residual_fluxes_cases():
+    r"""Pytest cases for code/utils.py:
+    calc_residual_fluxes
 
     """
-    (test_resampled_fit_fluxes, test_residual_fluxes) = \
-        code.utils.calc_residual_fluxes(
-            phases=phases, fluxes=fluxes,
-            fit_phases=fit_phases, fit_fluxes=fit_fluxes)
-    assert \
-        np.all(np.isclose(ref_resampled_fit_fluxes, test_resampled_fit_fluxes))
-    assert \
-        np.all(np.isclose(ref_residual_fluxes, test_residual_fluxes))
+    # Define function for testing cases.
+    def test_calc_residual_fluxes(
+        phases, fluxes, fit_phases, fit_fluxes,
+        ref_residual_fluxes, ref_resampled_fit_fluxes):
+        r"""Pytest for code/utils.py:
+        calc_flux_residual_fluxes
+
+        """
+        (test_residual_fluxes, test_resampled_fit_fluxes) = \
+            code.utils.calc_residual_fluxes(
+                phases=phases, fluxes=fluxes,
+                fit_phases=fit_phases, fit_fluxes=fit_fluxes)
+        assert \
+            np.all(
+                np.isclose(
+                    ref_residual_fluxes,
+                    test_residual_fluxes))
+        assert \
+            np.all(
+                np.isclose(
+                    ref_resampled_fit_fluxes,
+                    test_resampled_fit_fluxes))
+        return None
+    # Test fit to linear function: flux = 1*phase
+    # Order of `phases` and `fit_phases` should not matter.
+    # `fluxes` and `fit_fluxes` are sampled at different coordinates.
+    (start, stop) = (0, 1)
+    phases = np.linspace(start=start, stop=stop, num=100, endpoint=False)
+    np.random.shuffle(phases)
+    fluxes = copy.deepcopy(phases)
+    fit_phases = np.linspace(start=start, stop=stop, num=101, endpoint=False)
+    np.random.shuffle(fit_phases)
+    fit_fluxes = copy.deepcopy(fit_phases)
+    ref_residual_fluxes = [0.0]*len(phases)
+    ref_resampled_fit_fluxes = fluxes
+    test_calc_residual_fluxes(
+        phases=phases, fluxes=fluxes,
+        fit_phases=fit_phases, fit_fluxes=fit_fluxes,
+        ref_residual_fluxes=ref_residual_fluxes,
+        ref_resampled_fit_fluxes=ref_resampled_fit_fluxes)
+    # TODO: Insert additional test cases here.
     return None
 
 # TODO: REDO BELOW HERE
-# Seed random number generator for reproducibility.
-np.random.seed(0)
-def test_calc_z1_z2(
-    dist=np.random.normal(loc=0, scale=1, size=1000),
-    ref_z1=0.53192162282074262, ref_z2=0.6959521800983498):
-    r"""pytest style test for code.utils.calc_z1_z2
-
-    """
-    (test_z1, test_z2) = code.utils.calc_z1_z2(dist=dist)
-    assert np.isclose(ref_z1, test_z1)
-    assert np.isclose(ref_z2, test_z2)
-    return None
-
-
 def test_plot_phased_histogram(
     hist_phases=[0.1, 0.4, 0.6, 0.9], hist_fluxes=[0.5, 1.0, 0.75, 1.0],
     hist_fluxes_err=[0.05]*4,
