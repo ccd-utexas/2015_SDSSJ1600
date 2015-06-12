@@ -19,6 +19,7 @@ import astroML.time_series as astroML_ts
 import binstarsolver as bss
 import gatspy.periodic as gastpy_per
 import matplotlib.pyplot as plt
+import numba
 import numpy as np
 import seaborn as sns
 
@@ -638,6 +639,274 @@ def calc_residual_fluxes(
     return (residual_fluxes, resampled_fit_fluxes)
 
 
+@numba.jit
+def are_valid_params(params):
+    """Check if parameters are valid.
+    
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        `params = (p1, p2, b0, b2, b4, sig)`.
+        Units are:
+        {p1, p2} = decimal orbital phase
+        {b0, b2, b4, sig} = relative flux
+
+    Returns
+    -------
+    are_valid : bool
+        True if all of the following hold:
+            If input phase parameters are all between 0 and 0.5, inclusive.
+            If input p1 is less than p2.
+            If sigma is not greater than 0.
+        False otherwise.
+    
+    See Also
+    --------
+    model_flux_rel
+
+    """
+    # Allow arbitrary flux values for flexibility.
+    # Some models may require flux between minima >~ 1 as a normalization factor
+    # (e.g. Ch 7 of Budding 2007).
+    (p1, p2, b0, b2, b4, sig) = params
+    if ((p1 < p2) and
+        (0.0 <= p1 and p1 <= 0.5) and
+        (0.0 <= p2 and p2 <= 0.5) and
+        (sig > 0)):
+        are_valid = True
+    else:
+        are_valid = False
+    return are_valid
+
+
+@numba.jit
+def model_flux_rel(params, phase):
+    """Model of folded eclipse light curve.
+    
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        `params = (p1, p2, b0, b2, b4, sig)`.
+        Units are:
+        {p1, p2} = decimal orbital phase
+        {b0, b2, b4, sig} = relative flux
+    phase : float
+        Eclipse phase. 0 <= `phase` <= 0.5.
+        Unit is decimal orbital phase.
+        
+    Returns
+    -------
+    flux_rel : float
+        Modeled relative flux. Unit is relative integrated flux.
+    
+    Notes
+    -----
+    - Trapezoidal model for folded light curve:
+        Durations of primary minimum and secondary minimum are equal.
+        Durations of primary ingress/egress and secondary ingress/egress are equal.
+        Light curve is segmented into functions f(x).
+        x values are `phase`, p0, p1, ...
+        light      |  |  |--------|  |  |
+        curve:     |  | /|        |\\|__|
+                   |__|/ |        |  |  |
+        function:  |f0|f1|   f2   |f3|f4|
+        phase:   0.0  p1 p2       p3 p4 0.5
+        primary minima:           f0(x)  = b0; 0.0 <= x < p1
+        boundary condition:       f0(p1) = f1(p1)
+        primary ingress/egress:   f1(x)  = m1*x + b1; p1 <= x < p2
+        boundary condition:       f1(p2) = f2(p2)
+        between minima:           f2(x)  = b2; p2 <= x < p3
+        boundary condition:       f2(p3) = f3(p3)
+        secondary ingress/egress: f3(x)  = m3*x + b3; p3 <= x < p4
+        boundary condition:       f3(p4) = f4(p4)
+        secondary minima:         f4(x)  = b4; p4 <= x <= 0.5
+        boundary condition:       p4 = 0.5 - p1
+        boundary condition:       p3 = 0.5 - p2
+    - Model parameters are defined relative to primary minima when possible since
+        primary minima are deeper and easier to detect from observations.
+    - `sig` is the standard deviation of all measurements of relative flux, which
+        assumes they are all drawn from the same distribution.
+    
+    Raises
+    ------
+    - ValueError: If parameters are not valid (see `are_params_valid`)
+    
+    See Also
+    --------
+    are_params_valid
+    
+    """
+    # Check input.
+    # NOTE: commented out for numba
+    #if not are_valid_params(params=params):
+    #    raise ValueError(
+    #        ("`params` are not valid:\n" +
+    #         "params = {params}").format(params=params))
+    # Compute modeled relative flux...
+    (p1, p2, b0, b2, b4, sig) = params
+    p4 = 0.5 - p1
+    p3 = 0.5 - p2
+    # ...for primary minima.
+    if phase < p1:
+        flux_rel = b0
+    # ...for primary ingress/egress.
+    elif p1 <= phase and phase < p2:
+        m1 = (b2 - b0)/(p2 - p1)
+        b1 = b0 - m1*p1
+        flux_rel = m1*phase + b1
+    # ...for between minima.
+    elif p2 <= phase and phase < p3:
+        flux_rel = b2
+    # ...for secondary ingress/egress.
+    elif p3 <= phase and phase < p4:
+        m3 = (b4 - b2)/(p4 - p3)
+        b3 = b2 - m3*p3
+        flux_rel = m3*phase + b3
+    # ...for secondary minima.
+    elif p4 <= phase:
+        flux_rel = b4
+    # NOTE: commented out for numba
+    #else:
+    #    raise AssertionError(
+    #        "Program error. `phase` was not classified as an eclipse event.")
+    return flux_rel
+
+
+def log_prior(params):
+    """Log prior of light curve model parameters up to a constant.
+    Light curve is folded so that phase is from 0 to 0.5
+    
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        `params = (p1, p2, b0, b2, b4, sig)`.
+        Units are:
+        {p1, p2} = decimal orbital phase
+        {b0, b2, b4, sig} = relative flux
+    
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta))
+        If parameters are outside of acceptible range, `-numpy.inf`.
+    
+    Notes
+    -----
+    - See `model_flux_rel` for description of parameters.
+    - This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within above constraints.
+        `lnp = -numpy.inf` otherwise.
+    
+    See Also
+    --------
+    model_flux_rel
+    
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    
+    """
+    if are_valid_params(params=params):
+        lnp = 0.0
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+def log_likelihood(params, phase, flux_rel):
+    """Log likelihood of light curve relative flux values given
+    phase values and light curve model parameters. Log likelihood
+    is computed up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters, the last
+        of which is the standard deviation of all measurements
+        of relative flux `params = (..., sig)`. Unit is relative flux.
+        This assumes that all measurements are drawn from the same
+        distribution.
+    phase : float
+        Eclipse phase. Unit is decimal orbital phase.
+    flux_rel : float
+        Light level at `phase`. Unit is relative integrated flux.
+        
+    Returns
+    -------
+    lnp : float
+        Log probability of relative flux values: ln(p(y|x, theta))
+        If parameters outside of acceptible range, `-numpy.inf`.
+    
+    Notes
+    -----
+    - See `model_flux_rel` for description of parameters.
+
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    
+    """
+    if are_valid_params(params=params):
+        sig = params[-1]
+        modeled_flux_rel = \
+            map(lambda phs: model_flux_rel(phase=phs, params=params),
+                phase)
+        lnp = -0.5 * np.sum(np.log(2*np.pi*sig**2) +
+                            ((flux_rel - modeled_flux_rel)**2 / sig**2))
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+def log_posterior(params, phase, flux_rel):
+    """Log probability of light curve model parameters
+    given the data. Log probability is computed
+    up to a constant.
+    
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+    phase : float
+        Eclipse phase. Unit is decimal orbital phase.
+    flux_rel : float
+        Light level at `phase`. Unit is relative integrated flux.
+        
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta|x,y))
+        If parameters outside of acceptible range, `-numpy.inf`.
+
+    Notes
+    -----
+    - See `model_flux_rel` for description of parameters.
+
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    
+    """
+    if are_valid_params(params=params):
+        lnpr = log_prior(params=params)
+        lnlike = log_likelihood(phase=phase,
+                                flux_rel=flux_rel,
+                                params=params)
+        lnp = lnpr + lnlike
+    else:
+        lnp = -np.inf
+    return lnp
+
+
 def read_quants_gianninas(fobj):
     """Read and parse custom file format of physical stellar parameters from
     Gianninas et al 2014, [1]_.
@@ -734,9 +1003,6 @@ def has_nans(obj):
         except TypeError:
             pass
     return found_nan
-
-
-# TDOO: insert emcee functions here.
 
 
 def model_geometry_from_light_curve(params, show_plots=False):

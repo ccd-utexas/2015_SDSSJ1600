@@ -270,7 +270,11 @@ def test_calc_residual_fluxes_cases():
     # TODO: Insert additional test cases here.
     return None
 
-# TODO: REDO BELOW HERE
+# TODO: def test_are_valid_params
+# TODO: def test_model_flux_rel
+# TODO: def test_log_prior
+# TODO: def test_log_likelihood
+# TODO: def test_log_posterior
 
 def test_read_quants_gianninas(
     fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
