@@ -654,50 +654,6 @@ def refine_best_period(
     return (refined_period, phases, fits_phased, times_phased, mtf)
 
 
-def calc_z1_z2(
-    dist):
-    r"""Calculate a rank-based measure of Gaussianity in the core
-    and tail of a distribution.
-    
-    Parameters
-    ----------
-    dist : array_like
-        Distribution to evaluate. 1D array of `float`.
-    
-    Returns
-    -------
-    z1 : float
-    z2 : float
-        Departure of distribution core (z1) or tails (z2) from that of a
-        Gaussian distribution in number of sigma.
-        
-    Notes
-    -----
-    - From section 4.7.4 of [1]_:
-        z1 = 1.3 * (abs(mu - median) / sigma) * sqrt(num_dist)
-        z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * sqrt(num_dist)
-        where mu = mean(residuals), median = median(residuals),
-        sigma = standard_deviation(residuals), num_dist = len(dist)
-        sigmaG = sigmaG(dist) = rank_based_standard_deviation(dist) (from [1]_)
-    - Interpretation:
-        For z1 = 1.0, the probability of a true Gaussian distribution also with
-        z1 > 1.0 is ~32% and is equivalent to a two-tailed p-value |z1| > 1.0.
-        The same is true for z2.
-    
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    
-    """
-    (mu, sigma) = astroML_stats.mean_sigma(dist)
-    (median, sigmaG) = astroML_stats.median_sigmaG(dist)
-    num_dist = len(dist)
-    z1 = 1.3 * (abs(mu - median) / sigma) * np.sqrt(num_dist)
-    z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * np.sqrt(num_dist)
-    return (z1, z2)
-
-
 def plot_phased_histogram(
 	hist_phases, hist_fluxes, hist_fluxes_err, times_phased, fluxes,
     fluxes_err, flux_unit='relative', return_ax=False):
@@ -915,4 +871,3 @@ def calc_phased_histogram(
             fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
             flux_unit=flux_unit, return_ax=False)
     return (hist_phases, hist_fluxes, hist_fluxes_err)
-

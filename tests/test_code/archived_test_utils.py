@@ -121,19 +121,6 @@ def test_refine_best_period(
     assert isinstance(test_multi_term_fit, astroML_ts.MultiTermFit)
     return None
 
-# Seed random number generator for reproducibility.
-np.random.seed(0)
-def test_calc_z1_z2(
-    dist=np.random.normal(loc=0, scale=1, size=1000),
-    ref_z1=0.53192162282074262, ref_z2=0.6959521800983498):
-    r"""pytest style test for code.utils.calc_z1_z2
-
-    """
-    (test_z1, test_z2) = code.utils.calc_z1_z2(dist=dist)
-    assert np.isclose(ref_z1, test_z1)
-    assert np.isclose(ref_z2, test_z2)
-    return None
-
 
 def test_plot_phased_histogram(
     hist_phases=[0.1, 0.4, 0.6, 0.9], hist_fluxes=[0.5, 1.0, 0.75, 1.0],
@@ -171,4 +158,3 @@ def test_calc_phased_histogram(
     assert np.all(np.isclose(ref_hist_fluxes, test_hist_fluxes))
     assert np.all(np.isclose(ref_hist_fluxes_err, test_hist_fluxes_err))
     return None
-

@@ -270,6 +270,19 @@ def test_calc_residual_fluxes_cases():
     # TODO: Insert additional test cases here.
     return None
 
+# Seed random number generator for reproducibility.
+np.random.seed(0)
+def test_calc_z1_z2(
+    dist=np.random.normal(loc=0, scale=1, size=1000),
+    ref_z1=0.53192162282074262, ref_z2=0.6959521800983498):
+    r"""pytest style test for code.utils.calc_z1_z2
+
+    """
+    (test_z1, test_z2) = code.utils.calc_z1_z2(dist=dist)
+    assert np.isclose(ref_z1, test_z1)
+    assert np.isclose(ref_z2, test_z2)
+    return None
+
 # TODO: def test_are_valid_params
 # TODO: def test_model_flux_rel
 # TODO: def test_log_prior
