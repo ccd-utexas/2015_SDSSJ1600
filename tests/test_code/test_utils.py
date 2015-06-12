@@ -270,7 +270,11 @@ def test_calc_residual_fluxes_cases():
     # TODO: Insert additional test cases here.
     return None
 
-# TODO: REDO BELOW HERE
+# TODO: def test_are_valid_params
+# TODO: def test_model_flux_rel
+# TODO: def test_log_prior
+# TODO: def test_log_likelihood
+# TODO: def test_log_posterior
 
 def test_read_quants_gianninas(
     fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
@@ -296,7 +300,7 @@ def test_has_nans(
     return None
 
 
-# Additional cases for test_has_nans
+# Cases for test_has_nans
 test_has_nans(
     obj={'a': None, 'b': {'b1': True, 'b2': [False, 1, 'nan', ('asdf', 2.0)]}},
     found_nan=False)
@@ -319,7 +323,7 @@ def test_model_geometry_from_light_curve(
     return None
 
 
-# Additional cases for test_model_geometry_from_light_curve
+# Cases for test_model_geometry_from_light_curve
 test_model_geometry_from_light_curve(
     params=(0.164135455619, 0.165111260919, 0.0478630092323, 1.0,
             0.758577575029, 0.01),
