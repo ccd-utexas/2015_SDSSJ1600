@@ -494,7 +494,7 @@ def calc_next_phase0_time(time, phase, best_period):
 
 def plot_phased_light_curve(
     phases, fluxes, fluxes_err, fit_phases, fit_fluxes,
-    flux_unit='relative', legend=False, return_ax=False):
+    flux_unit='relative', legend=True, return_ax=False):
     r"""Plot a phased light curve. Convenience function for plot formats
     from [1]_, [2]_.
 
@@ -518,9 +518,9 @@ def plot_phased_light_curve(
         String describing flux units for labeling the plot.
         Example: flux_unit='relative' will label the y-axis
         with "Flux (relative)".
-    legend : {False, True}, bool, optional
-        If `False` (default), do not show a legend.
-        If `True`, label the periodogram plot and create a legend.
+    legend : {True, False}, bool, optional
+        If `True` (default), label the periodogram plot and create a legend.
+        If `False`, do not show a legend.
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
         If `True`, return a `matplotlib.axes` instance
@@ -683,6 +683,144 @@ def calc_z1_z2(
     return (z1, z2)
 
 
+def calc_nterms_base(
+    model, max_nterms_base=20, show_summary_plots=True):
+    r"""Calculate the number of Fourier terms that best represent a `gatspy`
+    base model of the data's variability. The model is a multi-band, multi-term
+    generalized Lomb-Scargle periodogram. Convenience function for methods
+    from [1]_, [2]_.
+       
+    Parameters
+    ----------
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+    max_nterms_base : {20}, int, optional
+        Maximum number of terms to attempt fitting for `gatspy` base model.
+    show_periodograms : {False, True}, bool, optional
+        If `False` (default), do not display periodograms (power vs period)
+        for each candidate number of terms.
+    show_summary_plots : {True, False}, bool, optional
+        If `True` (default), display summary plots of delta BIC vs number of
+        terms, periodogram and phased light curve for best fit number of terms.
+    
+    Returns
+    -------
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy` with optimal number of terms for the base model.
+        The number of terms is determined by the maximum relative
+        Bayesian Information Criterion, adapted from section 10.3.3 of [1]_.
+
+    See Also
+    --------
+    gatspy.periodic.LombScargleMultiband
+
+    Notes
+    -----
+    - From 10.3.3 of [1]_, many light curves of eclipses are well
+        represented with ~6 terms and are best fit with ~10 terms.
+    -  Range around the best period is based on the angular frequency
+       resolution of the original data. Adopted from [2]_.
+       acquisition_time = max(times) - min(times)
+       omega_resolution = 2.0 * np.pi / acquisition_time
+       num_omegas = 1000 # chosen to balance fast computation with medium range
+       anti_aliasing = 1.0 / 2.56 # remove digital aliasing
+       # ensure sampling precision is higher than data precision
+       sampling_precision = 0.1 
+       range_omega_halfwidth = \
+           ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+            sampling_precision)
+    - Call after `calc_best_period`.
+    - Call before `refine_best_period`.
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+    
+    """
+    # TODO: separate as own function.
+    # Calculate the multiterm periodograms and choose the best number of
+    # terms from the maximum relative BIC.
+    acquisition_time = max(times) - min(times)
+    omega_resolution = 2.0 * np.pi / acquisition_time
+    num_omegas = 1000 # chosen to balance fast computation with medium range
+    anti_aliasing = 1.0 / 2.56 # remove digital aliasing
+    # ensure sampling precision is higher than data precisionR
+    sampling_precision = 0.1 
+    range_omega_halfwidth = \
+        ((num_omegas/2.0) * omega_resolution * anti_aliasing *
+         sampling_precision)
+    max_period = 0.5 * acquisition_time
+    min_omega = 2.0 * np.pi / max_period
+    median_sampling_period = np.median(np.diff(times))
+    min_period = 2.0 * median_sampling_period
+    max_omega = 2.0 * np.pi / (min_period)
+    best_omega = 2.0 * np.pi / best_period
+    range_omegas = \
+        np.clip(
+            np.linspace(
+                start=best_omega - range_omega_halfwidth,
+                stop=best_omega + range_omega_halfwidth,
+                num=num_omegas, endpoint=True),
+            min_omega, max_omega)
+    range_periods = 2.0 * np.pi / range_omegas
+    nterms_bics = []
+    for n_terms in range(1, max_n_terms+1):
+        range_powers = \
+            astroML_ts.multiterm_periodogram(
+                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+                n_terms=n_terms)
+        range_bic_max = \
+            max(astroML_ts.lomb_scargle_BIC(
+                P=range_powers, y=fluxes, dy=fluxes_err, n_harmonics=n_terms))
+        nterms_bics.append((n_terms, range_bic_max))
+        if show_periodograms:
+            print(80*'-')
+            plot_periodogram(
+                periods=range_periods, powers=range_powers, xscale='linear',
+                n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+                return_ax=False)
+            print("Number of Fourier terms: {num}".format(num=n_terms))
+            print("Relative Bayesian Information Criterion: {bic}".format(
+                bic=range_bic_max))
+    # Choose the best number of Fourier terms from the maximum delta BIC.
+    best_idx = np.argmax(zip(*nterms_bics)[1])
+    (best_n_terms, best_bic) = nterms_bics[best_idx]
+    mtf = astroML_ts.MultiTermFit(omega=best_omega, n_terms=best_n_terms)
+    mtf.fit(t=times, y=fluxes, dy=fluxes_err)
+    (phases, fits_phased, times_phased) = \
+        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
+    if show_summary_plots:
+        # Plot delta BICs after all terms have been fit.
+        print(80*'-')
+        nterms_bics_t = zip(*nterms_bics)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(nterms_bics_t[0], nterms_bics_t[1], color='black', marker='o')
+        ax.set_xlim(min(nterms_bics_t[0]), max(nterms_bics_t[0]))
+        ax.set_title("Relative Bayesian Information Criterion vs\n" +
+                     "number of Fourier terms")
+        ax.set_xlabel("number of Fourier terms")
+        ax.set_ylabel("delta BIC")
+        plt.show()
+        range_powers = \
+            astroML_ts.multiterm_periodogram(
+                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
+                n_terms=best_n_terms)
+        plot_periodogram(
+            periods=range_periods, powers=range_powers, xscale='linear',
+            n_terms=best_n_terms, period_unit=period_unit,
+            flux_unit=flux_unit, return_ax=False)
+        print("Best number of Fourier terms: {num}".format(num=best_n_terms))
+        print("Relative Bayesian Information Criterion: {bic}".format(
+            bic=best_bic))
+    return (best_n_terms, phases, fits_phased, times_phased)
+
+
 @numba.jit
 def are_valid_params(params):
     """Check if parameters are valid.
@@ -723,6 +861,7 @@ def are_valid_params(params):
         are_valid = False
     return are_valid
 
+
 @numba.jit
 def model_flux_rel(params, phase):
     """Model of folded eclipse light curve.
@@ -746,16 +885,18 @@ def model_flux_rel(params, phase):
     
     Notes
     -----
-    - Trapezoidal model for folded light curve:
+    - Segmented, symmetric eclipse light curve model:
         Durations of primary minimum and secondary minimum are equal.
         Durations of primary ingress/egress and secondary ingress/egress are equal.
         Light curve is segmented into functions f(x).
         x values are `phase`, p0, p1, ...
+
         light      |  |  |--------|  |  |
         curve:     |  | /|        |\\|__|
                    |__|/ |        |  |  |
         function:  |f0|f1|   f2   |f3|f4|
         phase:   0.0  p1 p2       p3 p4 0.5
+        
         primary minima:           f0(x)  = b0; 0.0 <= x < p1
         boundary condition:       f0(p1) = f1(p1)
         primary ingress/egress:   f1(x)  = m1*x + b1; p1 <= x < p2
