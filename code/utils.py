@@ -684,7 +684,8 @@ def calc_z1_z2(
 
 
 def calc_nterms_base(
-    model, max_nterms_base=20, show_summary_plots=True):
+    model, max_nterms_base=20, show_summary_plots=True, 
+    show_periodograms=False, period_unit='seconds', flux_unit='relative'):
     r"""Calculate the number of Fourier terms that best represent a `gatspy`
     base model of the data's variability. The model is a multi-band, multi-term
     generalized Lomb-Scargle periodogram. Convenience function for methods
@@ -696,43 +697,43 @@ def calc_nterms_base(
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
     max_nterms_base : {20}, int, optional
-        Maximum number of terms to attempt fitting for `gatspy` base model.
+        Maximum number of Fourier terms to attempt fitting for `gatspy`
+        base model.
     show_periodograms : {False, True}, bool, optional
         If `False` (default), do not display periodograms (power vs period)
-        for each candidate number of terms.
+        for each candidate number of base terms. Used for debugging.
     show_summary_plots : {True, False}, bool, optional
         If `True` (default), display summary plots of delta BIC vs number of
-        terms, periodogram and phased light curve for best fit number of terms.
-    
+        base terms, periodogram and phased light curve for best fit number of
+        base terms.
+    period_unit : {'seconds'}, string, optional
+    flux_unit : {'relative'}, string, optional
+        Strings describing period and flux units for labeling the plots.
+
     Returns
     -------
-    model : gatspy.periodic.LombScargleMultiband
+    model_best : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy` with optimal number of terms for the base model.
-        The number of terms is determined by the maximum relative
-        Bayesian Information Criterion, adapted from section 10.3.3 of [1]_.
+        The number of terms is determined by the maximum
+        Bayesian Information Criterion, adapted from section 10.3.3 of [1]_
+        and `astroML.time_series.lomb_scargle_BIC`. A new best period is
+        computed for the optimized model.
 
     See Also
     --------
-    gatspy.periodic.LombScargleMultiband
+    gatspy.periodic.LombScargleMultiband, calc_perod_limits
 
     Notes
     -----
+    - From [2]_, the "base" model is the relative shape of a light curve and
+        is common to all filters. The "band" model is the phase offset of the
+        light curve between filters.
     - From 10.3.3 of [1]_, many light curves of eclipses are well
-        represented with ~6 terms and are best fit with ~10 terms.
-    -  Range around the best period is based on the angular frequency
-       resolution of the original data. Adopted from [2]_.
-       acquisition_time = max(times) - min(times)
-       omega_resolution = 2.0 * np.pi / acquisition_time
-       num_omegas = 1000 # chosen to balance fast computation with medium range
-       anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-       # ensure sampling precision is higher than data precision
-       sampling_precision = 0.1 
-       range_omega_halfwidth = \
-           ((num_omegas/2.0) * omega_resolution * anti_aliasing *
-            sampling_precision)
-    - Call after `calc_best_period`.
-    - Call before `refine_best_period`.
+        represented with ~6 terms.
+    - The number of terms in the "band" model is not changed when computing the
+        Bayesian Information Criterion values. From [2]_, `gatspy`
+        performs best when model.Nterms_band >= model.Nterms_base.
 
     References
     ----------
@@ -742,83 +743,95 @@ def calc_nterms_base(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
-    # TODO: separate as own function.
-    # Calculate the multiterm periodograms and choose the best number of
-    # terms from the maximum relative BIC.
-    acquisition_time = max(times) - min(times)
-    omega_resolution = 2.0 * np.pi / acquisition_time
-    num_omegas = 1000 # chosen to balance fast computation with medium range
-    anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    # ensure sampling precision is higher than data precisionR
-    sampling_precision = 0.1 
-    range_omega_halfwidth = \
-        ((num_omegas/2.0) * omega_resolution * anti_aliasing *
-         sampling_precision)
-    max_period = 0.5 * acquisition_time
-    min_omega = 2.0 * np.pi / max_period
-    median_sampling_period = np.median(np.diff(times))
-    min_period = 2.0 * median_sampling_period
-    max_omega = 2.0 * np.pi / (min_period)
-    best_omega = 2.0 * np.pi / best_period
-    range_omegas = \
+    # Recursive copy input models to avoid altering.
+    model_init  = copy.deepcopy(model)
+    # Define zoomed period space around best period for computing the powers.
+    # Ensure that period space is sampled at much greater resolution than the
+    # data. Period space is sampled linearly in the zoomed periodogram.
+    (min_period, max_period, num_periods) = \
+        calc_period_limits(times=model_init.t)
+    delta_period = (max_period - min_period) / num_periods
+    zoom_num_periods = 1000
+    oversample_factor = 0.002
+    zoom_period_halfwidth =  \
+        (zoom_num_periods/2.0) * delta_period * oversample_factor
+    zoom_min_period = model_init.best_period - zoom_period_halfwidth
+    zoom_max_period = model_init.best_period + zoom_period_halfwidth
+    zoom_periods = \
         np.clip(
             np.linspace(
-                start=best_omega - range_omega_halfwidth,
-                stop=best_omega + range_omega_halfwidth,
-                num=num_omegas, endpoint=True),
-            min_omega, max_omega)
-    range_periods = 2.0 * np.pi / range_omegas
-    nterms_bics = []
-    for n_terms in range(1, max_n_terms+1):
-        range_powers = \
-            astroML_ts.multiterm_periodogram(
-                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
-                n_terms=n_terms)
-        range_bic_max = \
-            max(astroML_ts.lomb_scargle_BIC(
-                P=range_powers, y=fluxes, dy=fluxes_err, n_harmonics=n_terms))
-        nterms_bics.append((n_terms, range_bic_max))
+                start=zoom_min_period, stop=zoom_max_period,
+                num=zoom_num_periods, endpoint=True),
+            min_period, max_period)
+    # Compute Bayesian Information Criterion values for
+    # Nterms_band <= nterms_base <= max_nterms_base.
+    # NOTE: model_test.Nterms_band should always == model_init.Nterms_band,
+    # i.e. only model_test.Nterms_base ever changes.
+    nterms_base_bics = []
+    for nterms_base in xrange(model_init.Nterms_band, max_nterms_base+1):
+        model_test = copy.deepcopy(model_init)
+        model_test.Nterms_base = nterms_base
+        # Refit the model to the data with the updated nterms_base
+        model_test.fit(
+            t=model_test.t, y=model_test.y,
+            dy=model_test.dy, filts=model_test.filts)
+        zoom_powers = model_test.periodogram(periods=zoom_periods)
+        rel_bic = \
+            max(
+                astroML_ts.lomb_scargle_BIC(
+                    P=zoom_powers, y=model_test.y, dy=model_test.dy,
+                    n_harmonics=model_test.Nterms_base+model_test.Nterms_band))
+        nterms_base_bics.append((nterms_base, rel_bic))
         if show_periodograms:
             print(80*'-')
             plot_periodogram(
-                periods=range_periods, powers=range_powers, xscale='linear',
-                n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
+                periods=zoom_periods, powers=zoom_powers, xscale='linear',
+                period_unit='seconds', flux_unit='relative', legend=True,
                 return_ax=False)
-            print("Number of Fourier terms: {num}".format(num=n_terms))
-            print("Relative Bayesian Information Criterion: {bic}".format(
-                bic=range_bic_max))
+            print("Number of Fourier terms for base model: {num}".format(
+                num=model_test.Nterms_base))
+            print("Bayesian Information Criterion: {bic}".format(
+                bic=rel_bic))
+        assert model_init.Nterms_band == model_test.Nterms_band
     # Choose the best number of Fourier terms from the maximum delta BIC.
-    best_idx = np.argmax(zip(*nterms_bics)[1])
-    (best_n_terms, best_bic) = nterms_bics[best_idx]
-    mtf = astroML_ts.MultiTermFit(omega=best_omega, n_terms=best_n_terms)
-    mtf.fit(t=times, y=fluxes, dy=fluxes_err)
-    (phases, fits_phased, times_phased) = \
-        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
+    # Create optimized model and recompute best period.
+    best_idx = np.argmax(zip(*nterms_base_bics)[1])
+    (best_nterms_base, best_bic) = nterms_base_bics[best_idx]
+    model_best = \
+        gatspy_per.LombScargleMultiband(
+            Nterms_base=best_nterms_base, Nterms_band=model_init.Nterms_band)
+    model_best.fit(
+            t=model_init.t, y=model_init.y,
+            dy=model_init.dy, filts=model_init.filts)
+    # Speed up the finding the best period by setting the period_range to the
+    # zoomed window. Set period_range to that of model_init at completion.
+    model_best.optimizer.period_range = (zoom_min_period, zoom_max_period)
+    model_best.best_period
+    model_best.optimizer.period_range = model_init.optimizer.period_range
     if show_summary_plots:
         # Plot delta BICs after all terms have been fit.
         print(80*'-')
-        nterms_bics_t = zip(*nterms_bics)
+        nterms_base_bics_t = zip(*nterms_base_bics)
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.plot(nterms_bics_t[0], nterms_bics_t[1], color='black', marker='o')
-        ax.set_xlim(min(nterms_bics_t[0]), max(nterms_bics_t[0]))
-        ax.set_title("Relative Bayesian Information Criterion vs\n" +
-                     "number of Fourier terms")
-        ax.set_xlabel("number of Fourier terms")
-        ax.set_ylabel("delta BIC")
+        ax.plot(nterms_base_bics_t[0], nterms_base_bics_t[1], marker='.')
+        ax.set_title("Bayesian Information Criterion vs\n" +
+                     "number of Fourier terms for base model")
+        ax.set_xlabel("Number of Fourier terms")
+        ax.set_ylabel("BIC")
         plt.show()
-        range_powers = \
-            astroML_ts.multiterm_periodogram(
-                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
-                n_terms=best_n_terms)
+        zoom_powers = model_best.periodogram(periods=zoom_periods)
         plot_periodogram(
-            periods=range_periods, powers=range_powers, xscale='linear',
-            n_terms=best_n_terms, period_unit=period_unit,
-            flux_unit=flux_unit, return_ax=False)
-        print("Best number of Fourier terms: {num}".format(num=best_n_terms))
-        print("Relative Bayesian Information Criterion: {bic}".format(
+            periods=zoom_periods, powers=zoom_powers, xscale='linear',
+            period_unit='seconds', flux_unit='relative', legend=True,
+            return_ax=False)
+        print("Best number of Fourier terms for base model: {num}".format(
+            num=best_nterms_base))
+        print("Bayesian Information Criterion: {bic}".format(
             bic=best_bic))
-    return (best_n_terms, phases, fits_phased, times_phased)
+        print("Best period for base model: {per} {unit}".format(
+            per=model_best.best_period, unit=period_unit))
+    return model_opt
 
 
 @numba.jit
