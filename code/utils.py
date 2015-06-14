@@ -17,7 +17,7 @@ import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
 import binstarsolver as bss
-import gatspy.periodic as gastpy_per
+import gatspy.periodic as gatspy_per
 import matplotlib.pyplot as plt
 import numba
 import numpy as np
@@ -35,7 +35,7 @@ def calc_period_limits(times):
     ---------
     times : numpy.ndarray
         1D array of time coordinates for data.
-        Unit is time, e.g. seconds or days.
+        Unit is time, e.g. seconds.
     
     Returns
     -------
@@ -79,81 +79,6 @@ def calc_period_limits(times):
     return (min_period, max_period, num_periods)
 
 
-def plot_periodogram(
-    periods, powers, xscale='log', period_unit='seconds',
-    flux_unit='relative', legend=False, return_ax=False):
-    r"""Plot the periods and relative powers for a multiband generalized
-    Lomb-Scargle periodogram. Convenience function for methods from
-    [1]_, [2]_.
-
-    Parameters
-    ----------
-    periods : numpy.ndarray
-        1D array of periods. Unit is time, e.g. seconds or days.
-    powers : numpy.ndarray
-        1D array of powers. Unit is relative Lomb-Scargle power spectral density
-        from flux and angular frequency, e.g. from relative flux,
-        angular frequency 2*pi/seconds.
-    xscale : {'log', 'linear'}, string, optional
-        `matplotlib.pyplot` attribute to plot periods x-scale in
-        'log' (default) or 'linear' scale.
-    period_unit : {'seconds'}, string, optional
-    flux_unit : {'relative'}, string, optional
-        Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label
-        the x-axis with "Period (seconds)"
-        and label the y-axis with
-        "Relative Lomb-Scargle Power Spectral Density" +
-        "(from flux in relative, ang. freq. in 2*pi/seconds)".
-    legend : {False, True}, bool, optional
-        If `False` (default), do not show a legend.
-        If `True`, label the periodogram plot and create a legend.
-    return_ax : {False, True}, bool, optional
-        If `False` (default), show the periodogram plot. Return `None`.
-        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
-        instance for additional modification.
-
-    Returns
-    -------
-    ax : matplotlib.axes
-        Returned only if `return_ax` is `True`. Otherwise returns `None`.
-
-    See Also
-    --------
-    plot_phased_light_curve
-
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] VanderPlas and Ivezic, 2015,
-           http://adsabs.harvard.edu/abs/2015arXiv150201344V
-    
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, xscale=xscale)
-    if legend:
-        label = 'relative L-S PSD'
-    else:
-        label = None
-    ax.plot(periods, powers, marker='.', label=label)
-    if legend:
-        ax.legend(loc='upper left')
-    ax.set_xlim(min(periods), max(periods))
-    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
-    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
-    ax.set_ylabel(
-        ("Relative Lomb-Scargle power spectral density\n" +
-         "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
-            funit=flux_unit, punit=period_unit))
-    if return_ax:
-        return_obj = ax
-    else:
-        plt.show()
-        return_obj = None
-    return return_obj
-
-
 def calc_sig_levels(
     model, sigs=(95.0, 99.0, 99.9), num_periods=20, num_shuffles=1000):
     r"""Calculate relative powers that correspond to significance levels for
@@ -179,13 +104,15 @@ def calc_sig_levels(
     -------
     sig_periods : numpy.ndarray
         Periods at which significance levels were computed.
+        Units are time, same as `model.t`
     sig_powers : dict
         `dict` of `numpy.ndarray`. Keys are `sigs`. Values are relative powers
-        for each significance level as a `numpy.ndarray`.
+        for each significance level as a `numpy.ndarray`. Units are relative
+        power from `model.periodogram`.
 
     See Also
     --------
-    gatspy.periodic.LombScargleMultiband, calc_period_limits
+    gatspy.periodic.LombScargleMultiband, calc_period_limits, plot_periodogram
 
     Notes
     -----
@@ -227,6 +154,95 @@ def calc_sig_levels(
     sig_powers = \
         {sig: np.percentile(a=sig_powers_arr, q=sig, axis=0) for sig in sigs}
     return (sig_periods, sig_powers)
+
+
+def plot_periodogram(
+    periods, powers, best_period=None, sig_periods=None, sig_powers=None,
+    xscale='log', period_unit='seconds', flux_unit='relative', return_ax=False):
+    r"""Plot relative power vs period for a Lomb-Scargle periodogram.
+    Convenience function for methods from [1]_, [2]_.
+
+    Parameters
+    ----------
+    periods : numpy.ndarray
+        1D array of periods. Unit is time, e.g. seconds.
+    powers : numpy.ndarray
+        1D array of powers. Unit is relative Lomb-Scargle power spectral density
+        from flux and angular frequency, e.g. from relative flux,
+        angular frequency 2*pi/seconds.
+    best_period : {None}, float, optional
+        Period of light curve model that best represents the time series data.
+        Unit is same as `periods`.
+    sig_periods : {None}, numpy.ndarray, optional
+        Periods at which significance levels were computed.
+        Units are same as `periods`.
+    sig_powers : {None}, dict, optional
+        `dict` of `numpy.ndarray`. Keys are significance levels. Values are
+        relative powers for each significance level as a `numpy.ndarray`.
+        Units are same as `powers`.
+    xscale : {'log', 'linear'}, string, optional
+        `matplotlib.pyplot` attribute to plot periods x-scale in
+        'log' (default) or 'linear' scale.
+    period_unit : {'seconds'}, string, optional
+    flux_unit : {'relative'}, string, optional
+        Strings describing period and flux units for labeling the plot.
+        Example: period_unit='seconds', flux_unit='relative' will label
+        the x-axis with "Period (seconds)"
+        and label the y-axis with
+        "Relative Lomb-Scargle Power Spectral Density" +
+        "(from flux in relative, ang. freq. in 2*pi/seconds)".
+    return_ax : {False, True}, bool, optional
+        If `False` (default), show the periodogram plot. Return `None`.
+        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
+        instance for additional modification.
+
+    Returns
+    -------
+    ax : matplotlib.axes
+        Returned only if `return_ax` is `True`. Otherwise returns `None`.
+
+    See Also
+    --------
+    plot_phased_light_curve, calc_sig_levels
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+    
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(111, xscale=xscale)
+    ax.plot(
+        periods, powers, color=sns.color_palette()[0],
+        marker='.', label='relative L-S PSD')
+    if best_period is not None:
+        ax.axvline(
+            x=best_period, color=sns.color_palette()[1],
+            linestyle=':', label='best period')
+    if (sig_periods is not None) and (sig_powers is not None):
+        sig_label = str(sig_powers.keys())+'\npercentile sig.'
+        for sig in sig_powers.keys():
+            ax.plot(
+                sig_periods, sig_powers[sig], color=sns.color_palette()[2],
+                linestyle='--', marker='.', label=sig_label)
+            sig_label=None
+    ax.legend(loc='upper left')
+    ax.set_xlim(min(periods), max(periods))
+    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
+    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
+    ax.set_ylabel(
+        ("Relative Lomb-Scargle power spectral density\n" +
+         "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
+            funit=flux_unit, punit=period_unit))
+    if return_ax:
+        return_obj = ax
+    else:
+        plt.show()
+        return_obj = None
+    return return_obj
 
 
 def calc_min_flux_time(
@@ -404,7 +420,7 @@ def calc_phases(times, best_period, min_flux_time=0.0):
     ----------
     times : numpy.ndarray
         1D array of time coordinates of observed data.
-        Units are time, e.g. seconds or days.
+        Units are time, e.g. seconds.
     best_period : float
         Period that best represents the time series. Unit is same as `times`.
     min_flux_time : {0.0}, float, optional
@@ -454,7 +470,7 @@ def calc_next_phase0_time(time, phase, best_period):
     Parameters
     ----------
     time : float
-        Time coordinate. Units is time, e.g. seconds or days.
+        Time coordinate. Units is time, e.g. seconds.
     phase : float
         Phase of `time`. Unit is decimal phase.
         Required: 0.0 <= phase <= 1.0
@@ -494,7 +510,7 @@ def calc_next_phase0_time(time, phase, best_period):
 
 def plot_phased_light_curve(
     phases, fluxes, fluxes_err, fit_phases, fit_fluxes,
-    flux_unit='relative', legend=True, return_ax=False):
+    flux_unit='relative', return_ax=False):
     r"""Plot a phased light curve. Convenience function for plot formats
     from [1]_, [2]_.
 
@@ -518,9 +534,6 @@ def plot_phased_light_curve(
         String describing flux units for labeling the plot.
         Example: flux_unit='relative' will label the y-axis
         with "Flux (relative)".
-    legend : {True, False}, bool, optional
-        If `True` (default), label the periodogram plot and create a legend.
-        If `False`, do not show a legend.
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
         If `True`, return a `matplotlib.axes` instance
@@ -574,19 +587,14 @@ def plot_phased_light_curve(
             np.append(tess_fit_phases, np.add(fit_phases, begin_phase + 1.0))
         tess_fit_fluxes = np.append(tess_fit_fluxes, fit_fluxes)
     # Plot tesselated light curve.
-    if legend:
-        (label_obs, label_fit) = ('observed', 'fit')
-    else:
-        (label_obs, label_fit) = (None, None)
     plt_kwargs = dict(marker='.', linestyle='', linewidth=1)
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.errorbar(
         tess_phases, tess_fluxes, tess_fluxes_err, ecolor='gray',
-        label=label_obs, **plt_kwargs)
-    ax.plot(tess_fit_phases, tess_fit_fluxes, label=label_fit, **plt_kwargs)
-    if legend:
-        ax.legend(loc='upper left')
+        label='observed', **plt_kwargs)
+    ax.plot(tess_fit_phases, tess_fit_fluxes, label='fit', **plt_kwargs)
+    ax.legend(loc='upper left')
     ax.set_title("Phased light curve")
     ax.set_xlabel("Orbital phase (decimal)")
     ax.set_ylabel("Flux ({unit})".format(unit=flux_unit))
@@ -734,6 +742,8 @@ def calc_nterms_base(
     - The number of terms in the "band" model is not changed when computing the
         Bayesian Information Criterion values. From [2]_, `gatspy`
         performs best when model.Nterms_band >= model.Nterms_base.
+    - Both the number of terms in the "base" model and in the "band" model
+        are included in the calculation of the Bayesian Information Criterion.
 
     References
     ----------
@@ -786,8 +796,7 @@ def calc_nterms_base(
             print(80*'-')
             plot_periodogram(
                 periods=zoom_periods, powers=zoom_powers, xscale='linear',
-                period_unit='seconds', flux_unit='relative', legend=True,
-                return_ax=False)
+                period_unit='seconds', flux_unit='relative', return_ax=False)
             print("Number of Fourier terms for base model: {num}".format(
                 num=model_test.Nterms_base))
             print("Bayesian Information Criterion: {bic}".format(
@@ -823,15 +832,14 @@ def calc_nterms_base(
         zoom_powers = model_best.periodogram(periods=zoom_periods)
         plot_periodogram(
             periods=zoom_periods, powers=zoom_powers, xscale='linear',
-            period_unit='seconds', flux_unit='relative', legend=True,
-            return_ax=False)
+            period_unit='seconds', flux_unit='relative', return_ax=False)
         print("Best number of Fourier terms for base model: {num}".format(
             num=best_nterms_base))
         print("Bayesian Information Criterion: {bic}".format(
             bic=best_bic))
         print("Best period for base model: {per} {unit}".format(
             per=model_best.best_period, unit=period_unit))
-    return model_opt
+    return model_best
 
 
 @numba.jit
