@@ -885,18 +885,31 @@ def are_valid_params(params):
 
 @numba.jit
 def model_flux_rel(params, phase):
-    """Model of folded eclipse light curve.
+    """Segmented, symmetric model of folded eclipse light curve.
     
     Parameters
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
+        `params = 
+            (phase_rel_int, phase_rel_ext,
+             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse, flux_sigma)`
+            phase_rel_int: Relative phase of internal tangencies
+                (end ingress/begin egress; p1, p4 under 'Notes').
+            phase_rel_ext: Relative phase of external tangencies
+                (begin ingress/end egress; p2, p3 under 'Notes').
+            flux_pri_eclipse: Flux at primary minimum (f0 under 'Notes').
+            flux_out_eclipse: Flux for phases that occur between minima
+                (f2 under 'Notes').
+            flux_sec_eclipse: Flux at secondary minimum (f4 under 'Notes').
+            flux_sigma: Standard deviation of relative fluxes. Assumes that all
+                fluxes are drawn from the same distribution.
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
+            {best_period, min_flux_time}
+            {phase_*} = decimal orbital phase
+            {flux_*} = relative flux
     phase : float
-        Eclipse phase. 0 <= `phase` <= 0.5.
+        Eclipse phase at which to calculate the flux. 0 <= `phase` <= 0.5.
         Unit is decimal orbital phase.
         
     Returns
@@ -916,8 +929,9 @@ def model_flux_rel(params, phase):
         curve:     |  | /|        |\\|__|
                    |__|/ |        |  |  |
         function:  |f0|f1|   f2   |f3|f4|
-        phase:   0.0  p1 p2       p3 p4 0.5
+        phase:     p0 p1 p2       p3 p4 p5
         
+        boundary condition:       p0     = 0.0
         primary minima:           f0(x)  = b0; 0.0 <= x < p1
         boundary condition:       f0(p1) = f1(p1)
         primary ingress/egress:   f1(x)  = m1*x + b1; p1 <= x < p2
@@ -927,20 +941,21 @@ def model_flux_rel(params, phase):
         secondary ingress/egress: f3(x)  = m3*x + b3; p3 <= x < p4
         boundary condition:       f3(p4) = f4(p4)
         secondary minima:         f4(x)  = b4; p4 <= x <= 0.5
-        boundary condition:       p4 = 0.5 - p1
-        boundary condition:       p3 = 0.5 - p2
-    - Model parameters are defined relative to primary minima when possible since
+        boundary condition:       p4     = p5 - p1
+        boundary condition:       p3     = p5 - p2
+        boundary condition:       p5     = 0.5
+    - Model parameters are defined relative to primary minima since
         primary minima are deeper and easier to detect from observations.
-    - `sig` is the standard deviation of all measurements of relative flux, which
-        assumes they are all drawn from the same distribution.
-    
-    Raises
-    ------
-    - ValueError: If parameters are not valid (see `are_params_valid`)
-    
+    - The out-of-eclipse flux level (f2 above), is left variable as a
+        normalization factor following [1]_.
+
     See Also
     --------
     are_params_valid
+
+    References
+    ----------
+    .. [1] Budding, 2007, "Introduction to Astronomical Photometry"
     
     """
     # Check input.
@@ -951,8 +966,9 @@ def model_flux_rel(params, phase):
     #         "params = {params}").format(params=params))
     # Compute modeled relative flux...
     (p1, p2, b0, b2, b4, sig) = params
-    p4 = 0.5 - p1
-    p3 = 0.5 - p2
+    p5 = 0.5
+    p4 = p5 - p1
+    p3 = p5 - p2
     # ...for primary minima.
     if phase < p1:
         flux_rel = b0
