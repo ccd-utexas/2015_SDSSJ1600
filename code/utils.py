@@ -883,7 +883,7 @@ def are_valid_params(params):
     return are_valid
 
 
-@numba.jit
+@numba.jit(nopython=True)
 def model_flux_rel(params, phase):
     """Segmented, symmetric model of folded eclipse light curve.
     
