@@ -1087,14 +1087,15 @@ def seg_log_likelihood(params, phases, fluxes_rel):
         sig = params[len(params)-1]
         modeled_fluxes_rel = seg_model_fluxes_rel(params=params, phases=phases)
         # Calculation for `lnp` from [2].
+        # All data are presumed to have the same sigma.
         log_term = np.log(2.0*np.pi*sig**2.0)
         idx = 0
-        res_term = 0.0
+        lnp = 0.0
         while idx < len(fluxes_rel):
             res = fluxes_rel[idx] - modeled_fluxes_rel[idx]
-            res_term += (res / sig)**2.0
+            res_term = (res / sig)**2.0
+            lnp += -0.5*(log_term + res_term)
             idx += 1
-        lnp = -0.5*(log_term + res_term)
     else:
         lnp = -np.inf
     return lnp
