@@ -42,22 +42,6 @@ def test_calc_period_limits(
     return None
 
 
-def test_plot_periodogram(
-    periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
-    period_unit='seconds', flux_unit='relative', legend=True, return_ax=True):
-    r"""Pytest for code/utils.py:
-    plot_periodogram
-    
-    """
-    ax = \
-      code.utils.plot_periodogram(
-          periods=periods, powers=powers, xscale=xscale,
-          period_unit=period_unit, flux_unit=flux_unit,
-          legend=legend, return_ax=return_ax)
-    assert isinstance(ax, plt.Axes)
-    return None
-
-
 def test_calc_sig_levels_cases():
     r"""Pytest cases for code/utils.py:
     calc_sig_levels
@@ -107,6 +91,22 @@ def test_calc_sig_levels_cases():
         model=model, sigs=sigs, num_periods=10, num_shuffles=100,
         ref_sig_periods=ref_sig_periods, ref_sig_powers=ref_sig_powers)
     # TODO: insert additional test cases here.
+    return None
+
+
+def test_plot_periodogram(
+    periods=[1,2,4,8,16], powers=[1,2,4,2,1], xscale='log',
+    period_unit='seconds', flux_unit='relative', return_ax=True):
+    r"""Pytest for code/utils.py:
+    plot_periodogram
+    
+    """
+    ax = \
+      code.utils.plot_periodogram(
+          periods=periods, powers=powers, xscale=xscale,
+          period_unit=period_unit, flux_unit=flux_unit,
+          return_ax=return_ax)
+    assert isinstance(ax, plt.Axes)
     return None
 
 
@@ -207,23 +207,23 @@ def test_calc_next_phase0_time(
 def test_plot_phased_light_curve(
     phases=np.linspace(start=0, stop=1, num=100, endpoint=False),
     fluxes=[1]*100, fluxes_err=[1]*100,
-    fit_phases=[1]*100, fit_fluxes=[1]*100, flux_unit='relative',
-    legend=True, return_ax=True):
-    r"""Pytest for code/utils.py:
+    fit_phases=[1]*100, fit_fluxes=[1]*100,
+    flux_unit='relative', return_ax=True):
+    r"""pytest for code/utils.py:
     plot_phased_light_curve
 
     """
     ax = \
         code.utils.plot_phased_light_curve(
             phases=phases, fluxes=fluxes, fluxes_err=fluxes_err,
-            fit_phases=fit_phases, fit_fluxes=fit_fluxes, flux_unit=flux_unit,
-            legend=legend, return_ax=return_ax)
+            fit_phases=fit_phases, fit_fluxes=fit_fluxes,
+            flux_unit=flux_unit, return_ax=return_ax)
     assert isinstance(ax, plt.Axes)
     return None
 
 
 def test_calc_residual_fluxes_cases():
-    r"""Pytest cases for code/utils.py:
+    r"""pytest cases for code/utils.py:
     calc_residual_fluxes
 
     """
@@ -275,7 +275,8 @@ np.random.seed(0)
 def test_calc_z1_z2(
     dist=np.random.normal(loc=0, scale=1, size=1000),
     ref_z1=0.53192162282074262, ref_z2=0.6959521800983498):
-    r"""pytest style test for code.utils.calc_z1_z2
+    r"""pytest for code/utils.py:
+    calc_z1_z2
 
     """
     (test_z1, test_z2) = code.utils.calc_z1_z2(dist=dist)
@@ -284,38 +285,124 @@ def test_calc_z1_z2(
     return None
 
 
-def test_calc_num_terms(
-    times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7,
-    best_period=2.0, max_n_terms=2, show_periodograms=False,
-    show_summary_plots=False, period_unit='seconds', flux_unit='relative',
-    ref_best_n_terms=1,
-    ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-    ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
-    r"""pytest style test for code.utils.calc_num_terms
+# def test_calc_num_terms(
+#     times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7,
+#     best_period=2.0, max_n_terms=2, show_periodograms=False,
+#     show_summary_plots=False, period_unit='seconds', flux_unit='relative',
+#     ref_best_n_terms=1,
+#     ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
+#     ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
+#     r"""pytest for code/utils.py:
+#     calc_num_terms
+
+#     """
+#     (test_best_n_terms, test_phases, test_fits_phased, test_times_phased) = \
+#         code.utils.calc_num_terms(
+#             times=times, fluxes=fluxes, fluxes_err=fluxes_err,
+#             best_period=best_period, max_n_terms=max_n_terms,
+#             show_periodograms=show_periodograms,
+#             show_summary_plots=show_summary_plots, period_unit=period_unit,
+#             flux_unit=flux_unit)
+#     assert ref_best_n_terms == test_best_n_terms
+#     assert np.all(np.isclose(ref_phases, test_phases))
+#     if ref_fits_phased is None:
+#         assert len(ref_phases) == len(test_fits_phased)
+#     else:
+#         assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
+#     assert np.all(np.isclose(ref_times_phased, test_times_phased))
+#     return None
+
+
+def test_seg_are_valid_params(
+    params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
+    ref_are_valid=True):
+    """pytest for code/utils.py:
+    seg_are_valid_params
 
     """
-    (test_best_n_terms, test_phases, test_fits_phased, test_times_phased) = \
-        code.utils.calc_num_terms(
-            times=times, fluxes=fluxes, fluxes_err=fluxes_err,
-            best_period=best_period, max_n_terms=max_n_terms,
-            show_periodograms=show_periodograms,
-            show_summary_plots=show_summary_plots, period_unit=period_unit,
-            flux_unit=flux_unit)
-    assert ref_best_n_terms == test_best_n_terms
-    assert np.all(np.isclose(ref_phases, test_phases))
-    if ref_fits_phased is None:
-        assert len(ref_phases) == len(test_fits_phased)
-    else:
-        assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
-    assert np.all(np.isclose(ref_times_phased, test_times_phased))
+    test_are_valid = code.utils.seg_are_valid_params(params=params)
+    assert ref_are_valid == test_are_valid
     return None
 
 
-# TODO: def test_are_valid_params
-# TODO: def test_model_flux_rel
-# TODO: def test_log_prior
-# TODO: def test_log_likelihood
-# TODO: def test_log_posterior
+# Cases for test_seg_are_valid_params
+test_seg_are_valid_params(
+    params=(-0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
+    ref_are_valid=False)
+
+
+def test_seg_model_fluxes_rel(
+    params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
+    phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
+    ref_modeled_fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874])):
+    """pytest for code/utils.py:
+    seg_model_fluxes_rel
+
+    """
+    test_modeled_fluxes_rel = \
+        code.utils.seg_model_fluxes_rel(params=params, phases=phases)
+    assert np.all(np.isclose(ref_modeled_fluxes_rel, test_modeled_fluxes_rel))
+    return None
+
+
+def test_seg_log_prior(
+    params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061), ref_lnp=0.0):
+    """pytest for code/utils.py:
+    seg_log_prior
+
+    """
+    test_lnp = code.utils.seg_log_prior(params=params)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_seg_log_prior
+test_seg_log_prior(
+    params=(-0.018, 0.045, 0.535, 1.016, 0.874, 0.061), ref_lnp=-np.inf)
+
+
+def test_seg_log_likelihood(
+    params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
+    phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
+    fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
+    ref_lnp=1.877942881604153):
+    """pytest for code/utils.py:
+    seg_log_likelihood
+
+    """
+    test_lnp = code.utils.seg_log_likelihood(
+        params=params, phases=phases, fluxes_rel=fluxes_rel)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_seg_log_likelihood
+test_seg_log_likelihood(
+    params=(-0.018, 0.045, 0.535, 1.016, 0.874, 0.061), ref_lnp=-np.inf)
+
+
+def test_seg_log_posterior(
+    params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
+    phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
+    fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
+    ref_lnp=1.877942881604153):
+    """pytest for code/utils.py:
+    seg_log_posterior
+
+    """
+    test_lnp = code.utils.seg_log_posterior(
+        params=params, phases=phases, fluxes_rel=fluxes_rel)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_seg_log_likelihood
+test_seg_log_likelihood(
+    params=(-0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
+    phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
+    fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
+    ref_lnp=-np.inf)
+
 
 def test_read_quants_gianninas(
     fobj=StringIO.StringIO("Name         SpT    Teff log L/Lo  t_cool \n" +
@@ -373,28 +460,28 @@ test_model_geometry_from_light_curve(
                0.000481306260183, 0.163880773527))
 
 
-# TODO: update test when light curve parameters include phase, period.
-def test_model_quantities_from_lc_velr_stellar(
-    phase0=np.nan,
-    period=271209600.0,
-    lc_params=(0.164135455619, 0.165111260919,
-               0.0478630092323, 1.0, 0.758577575029, np.nan),
-    velr_b=33e3,
-    stellar_b=(2.61291629258e+30, 760266000.0, 1.40922538433),
-    ref_quants=(np.nan, 271209600.0, np.deg2rad(90.0), 1.55823297919e+12,
-                2.324294844333284e+31,
-                33e3, 1.42442349898e+12, 2.61291629258e+30, 760266000.0,
-                1.40922538433,
-                3.1e3, 1.33809480207e+11, 2.78149153727e+31, 258864241950.22577,
-                1.0)):
-    r"""Pytest style test for code/utils.py:
-    model_quantities_from_light_curve_model
+# TODO: redo test when light curve parameters include phase, period.
+# def test_model_quantities_from_lc_velr_stellar(
+#     phase0=np.nan,
+#     period=271209600.0,
+#     lc_params=(0.164135455619, 0.165111260919,
+#                0.0478630092323, 1.0, 0.758577575029, np.nan),
+#     velr_b=33e3,
+#     stellar_b=(2.61291629258e+30, 760266000.0, 1.40922538433),
+#     ref_quants=(np.nan, 271209600.0, np.deg2rad(90.0), 1.55823297919e+12,
+#                 2.324294844333284e+31,
+#                 33e3, 1.42442349898e+12, 2.61291629258e+30, 760266000.0,
+#                 1.40922538433,
+#                 3.1e3, 1.33809480207e+11, 2.78149153727e+31, 258864241950.22577,
+#                 1.0)):
+#     r"""Pytest style test for code/utils.py:
+#     model_quantities_from_light_curve_model
 
-    """
-    test_quants = \
-        code.utils.model_quantities_from_lc_velr_stellar(
-            phase0=phase0, period=period, lc_params=lc_params, velr_b=velr_b,
-            stellar_b=stellar_b)
-    # NOTE: remove equal_nan when phase0 is computed from light curve
-    assert np.all(np.isclose(ref_quants, test_quants, equal_nan=True))
-    return None
+#     """
+#     test_quants = \
+#         code.utils.model_quantities_from_lc_velr_stellar(
+#             phase0=phase0, period=period, lc_params=lc_params, velr_b=velr_b,
+#             stellar_b=stellar_b)
+#     # NOTE: remove equal_nan when phase0 is computed from light curve
+#     assert np.all(np.isclose(ref_quants, test_quants, equal_nan=True))
+#     return None

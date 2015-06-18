@@ -1062,7 +1062,7 @@ def seg_log_likelihood(params, phases, fluxes_rel):
     phases : numpy.ndarray
         1D array of phases. Unit is decimal orbital phase.
     fluxes_rel : numpy.ndarray
-        1D array of fluxes. Unit is relative integrated flux.
+        1D array of observed fluxes. Unit is relative integrated flux.
         Required: `len(fluxes_rel) == len(phases)`
         
     Returns
@@ -1113,7 +1113,7 @@ def seg_log_posterior(params, phases, fluxes_rel):
     phases : numpy.ndarray
         1D array of phases. Unit is decimal orbital phase.
     fluxes_rel : numpy.ndarray
-        1D array of fluxes. Unit is relative integrated flux.
+        1D array of observed fluxes. Unit is relative integrated flux.
         Required: `len(fluxes_rel) == len(phases)`
         
     Returns
