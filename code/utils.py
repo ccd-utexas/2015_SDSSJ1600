@@ -842,36 +842,39 @@ def calc_nterms_base(
     return model_best
 
 
-@numba.jit
-def are_valid_params(params):
+@numba.jit(nopython=True)
+def seg_are_valid_params(params):
     """Check if parameters are valid.
-    
+
     Parameters
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
+        `params = 
+            (phase_rel_int, phase_rel_ext,
+             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
+             flux_sigma)`
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
+            {phase_*} = decimal orbital phase
+            {flux_*} = relative flux
 
     Returns
     -------
     are_valid : bool
         True if all of the following hold:
-            If input phase parameters are all between 0 and 0.5, inclusive.
-            If input p1 is less than p2.
-            If sigma is not greater than 0.
+            If input 0 <= {`phase_rel_int`, `phase_rel_ext`} <= 0.5
+            If input `phase_rel_int` < `phase_rel_ext`.
+            If `flux_sigma` <= 0.
         False otherwise.
-    
+
     See Also
     --------
-    model_flux_rel
+    seg_model_flux_rel
 
     """
     # Allow arbitrary flux values for flexibility.
-    # Some models may require flux between minima >~ 1 as a normalization factor
-    # (e.g. Ch 7 of Budding 2007).
+    # Some models may require flux between minima >~ 1 as a normalization
+    # factor (e.g. Ch 7 of Budding 2007).
     (p1, p2, b0, b2, b4, sig) = params
     if ((p1 < p2) and
         (0.0 <= p1 and p1 <= 0.5) and
@@ -884,7 +887,7 @@ def are_valid_params(params):
 
 
 @numba.jit(nopython=True)
-def model_flux_rel(params, phase):
+def seg_model_fluxes_rel(params, phases):
     """Segmented, symmetric model of folded eclipse light curve.
     
     Parameters
@@ -893,7 +896,8 @@ def model_flux_rel(params, phase):
         Tuple of floats representing the model parameters.
         `params = 
             (phase_rel_int, phase_rel_ext,
-             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse, flux_sigma)`
+             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
+             flux_sigma)`
             phase_rel_int: Relative phase of internal tangencies
                 (end ingress/begin egress; p1, p4 under 'Notes').
             phase_rel_ext: Relative phase of external tangencies
@@ -902,27 +906,27 @@ def model_flux_rel(params, phase):
             flux_out_eclipse: Flux for phases that occur between minima
                 (f2 under 'Notes').
             flux_sec_eclipse: Flux at secondary minimum (f4 under 'Notes').
-            flux_sigma: Standard deviation of relative fluxes. Assumes that all
-                fluxes are drawn from the same distribution.
+            flux_sigma: Standard deviation of relative fluxes. Assumes that
+                all fluxes are drawn from the same distribution.
         Units are:
-            {best_period, min_flux_time}
             {phase_*} = decimal orbital phase
             {flux_*} = relative flux
-    phase : float
-        Eclipse phase at which to calculate the flux. 0 <= `phase` <= 0.5.
-        Unit is decimal orbital phase.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+        Unit is decimal orbital phase. 0 <= `phase` <= 0.5.
         
     Returns
     -------
-    flux_rel : float
+    modeled_fluxes_rel : float
         Modeled relative flux. Unit is relative integrated flux.
     
     Notes
     -----
+    - Requires that all input parameters are already checked as valid.
     - Segmented, symmetric eclipse light curve model:
         Durations of primary minimum and secondary minimum are equal.
-        Durations of primary ingress/egress and secondary ingress/egress are equal.
-        Light curve is segmented into functions f(x).
+        Durations of primary ingress/egress and secondary ingress/egress
+        are equal. Light curve is segmented into functions f(x).
         x values are `phase`, p0, p1, ...
 
         light      |  |  |--------|  |  |
@@ -948,6 +952,7 @@ def model_flux_rel(params, phase):
         primary minima are deeper and easier to detect from observations.
     - The out-of-eclipse flux level (f2 above), is left variable as a
         normalization factor following [1]_.
+    - Return `bool` rather than raise exception for optimization with numba.
 
     See Also
     --------
@@ -958,55 +963,56 @@ def model_flux_rel(params, phase):
     .. [1] Budding, 2007, "Introduction to Astronomical Photometry"
     
     """
-    # Check input.
-    # NOTE: commented out for numba
-    #if not are_valid_params(params=params):
-    #    raise ValueError(
-    #        ("`params` are not valid:\n" +
-    #         "params = {params}").format(params=params))
     # Compute modeled relative flux...
     (p1, p2, b0, b2, b4, sig) = params
     p5 = 0.5
     p4 = p5 - p1
     p3 = p5 - p2
-    # ...for primary minima.
-    if phase < p1:
-        flux_rel = b0
-    # ...for primary ingress/egress.
-    elif p1 <= phase and phase < p2:
-        m1 = (b2 - b0)/(p2 - p1)
-        b1 = b0 - m1*p1
-        flux_rel = m1*phase + b1
-    # ...for between minima.
-    elif p2 <= phase and phase < p3:
-        flux_rel = b2
-    # ...for secondary ingress/egress.
-    elif p3 <= phase and phase < p4:
-        m3 = (b4 - b2)/(p4 - p3)
-        b3 = b2 - m3*p3
-        flux_rel = m3*phase + b3
-    # ...for secondary minima.
-    elif p4 <= phase:
-        flux_rel = b4
-    # NOTE: commented out for numba
-    #else:
-    #    raise AssertionError(
-    #        "Program error. `phase` was not classified as an eclipse event.")
-    return flux_rel
+    num_phases = len(phases)
+    modeled_fluxes_rel = np.empty(num_phases)
+    idx = 0
+    while idx < num_phases:
+        phase = phases[idx]
+        # ...for primary minima.
+        if phase < p1:
+            modeled_flux_rel = b0
+        # ...for primary ingress/egress.
+        elif p1 <= phase and phase < p2:
+            m1 = (b2 - b0)/(p2 - p1)
+            b1 = b0 - m1*p1
+            modeled_flux_rel = m1*phase + b1
+        # ...for between minima.
+        elif p2 <= phase and phase < p3:
+            modeled_flux_rel = b2
+        # ...for secondary ingress/egress.
+        elif p3 <= phase and phase < p4:
+            m3 = (b4 - b2)/(p4 - p3)
+            b3 = b2 - m3*p3
+            modeled_flux_rel = m3*phase + b3
+        # ...for secondary minima.
+        elif p4 <= phase:
+            modeled_flux_rel = b4
+        modeled_fluxes_rel[idx] = modeled_flux_rel
+        idx += 1
+    return modeled_fluxes_rel
 
 
-def log_prior(params):
+@numba.jit(nopython=True)
+def seg_log_prior(params):
     """Log prior of light curve model parameters up to a constant.
     Light curve is folded so that phase is from 0 to 0.5
-    
+
     Parameters
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
+        `params = 
+            (phase_rel_int, phase_rel_ext,
+             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
+             flux_sigma)`
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
+            {phase_*} = decimal orbital phase
+            {flux_*} = relative flux
     
     Returns
     -------
@@ -1016,14 +1022,14 @@ def log_prior(params):
     
     Notes
     -----
-    - See `model_flux_rel` for description of parameters.
+    - See `seg_model_flux_rel` for description of parameters.
     - This is an uninformative prior:
         `lnp = 0.0` if `theta` is within above constraints.
         `lnp = -numpy.inf` otherwise.
     
     See Also
     --------
-    model_flux_rel
+    seg_model_flux_rel
     
     References
     ----------
@@ -1032,14 +1038,15 @@ def log_prior(params):
     ..[3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if are_valid_params(params=params):
+    if seg_are_valid_params(params=params):
         lnp = 0.0
     else:
         lnp = -np.inf
     return lnp
 
 
-def log_likelihood(params, phase, flux_rel):
+@numba.jit(nopython=True)
+def seg_log_likelihood(params, phases, fluxes_rel):
     """Log likelihood of light curve relative flux values given
     phase values and light curve model parameters. Log likelihood
     is computed up to a constant.
@@ -1049,13 +1056,14 @@ def log_likelihood(params, phase, flux_rel):
     params : tuple
         Tuple of floats representing the model parameters, the last
         of which is the standard deviation of all measurements
-        of relative flux `params = (..., sig)`. Unit is relative flux.
-        This assumes that all measurements are drawn from the same
-        distribution.
-    phase : float
-        Eclipse phase. Unit is decimal orbital phase.
-    flux_rel : float
-        Light level at `phase`. Unit is relative integrated flux.
+        of relative flux `params = (..., flux_sigma)`.
+        Unit is relative flux. This assumes that all measurements are
+        drawn from the same distribution.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+    fluxes_rel : numpy.ndarray
+        1D array of fluxes. Unit is relative integrated flux.
+        Required: `len(fluxes_rel) == len(phases)`
         
     Returns
     -------
@@ -1065,28 +1073,35 @@ def log_likelihood(params, phase, flux_rel):
     
     Notes
     -----
-    - See `model_flux_rel` for description of parameters.
+    - See `seg_model_flux_rel` for description of parameters.
 
     References
     ----------
-    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
-    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
-    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if are_valid_params(params=params):
-        sig = params[-1]
-        modeled_flux_rel = \
-            map(lambda phs: model_flux_rel(phase=phs, params=params),
-                phase)
-        lnp = -0.5 * np.sum(np.log(2*np.pi*sig**2) +
-                            ((flux_rel - modeled_flux_rel)**2 / sig**2))
+    if seg_are_valid_params(params=params):
+        # numba does not support negative indexing `params[-1]`
+        sig = params[len(params)-1]
+        modeled_fluxes_rel = seg_model_fluxes_rel(params=params, phases=phases)
+        # Calculation for `lnp` from [2].
+        log_term = np.log(2.0*np.pi*sig**2.0)
+        idx = 0
+        res_term = 0.0
+        while idx < len(fluxes_rel):
+            res = fluxes_rel[idx] - modeled_fluxes_rel[idx]
+            res_term += (res / sig)**2.0
+            idx += 1
+        lnp = -0.5*(log_term + res_term)
     else:
         lnp = -np.inf
     return lnp
 
 
-def log_posterior(params, phase, flux_rel):
+@numba.jit(nopython=True)
+def seg_log_posterior(params, phases, fluxes_rel):
     """Log probability of light curve model parameters
     given the data. Log probability is computed
     up to a constant.
@@ -1095,10 +1110,11 @@ def log_posterior(params, phase, flux_rel):
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-    phase : float
-        Eclipse phase. Unit is decimal orbital phase.
-    flux_rel : float
-        Light level at `phase`. Unit is relative integrated flux.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+    fluxes_rel : numpy.ndarray
+        1D array of fluxes. Unit is relative integrated flux.
+        Required: `len(fluxes_rel) == len(phases)`
         
     Returns
     -------
@@ -1108,20 +1124,20 @@ def log_posterior(params, phase, flux_rel):
 
     Notes
     -----
-    - See `model_flux_rel` for description of parameters.
+    - See `seg_model_flux_rel` for description of parameters.
 
     References
     ----------
-    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
-    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
-    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if are_valid_params(params=params):
-        lnpr = log_prior(params=params)
-        lnlike = log_likelihood(phase=phase,
-                                flux_rel=flux_rel,
-                                params=params)
+    if seg_are_valid_params(params=params):
+        # Calculation of `lnp` from [2]_.
+        lnpr = seg_log_prior(params=params)
+        lnlike = seg_log_likelihood(
+            params=params, phases=phases, fluxes_rel=fluxes_rel)
         lnp = lnpr + lnlike
     else:
         lnp = -np.inf
@@ -1267,7 +1283,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
         
     See Also
     --------
-    model_flux_rel, model_quantities_from_lc_velr_stellar
+    seg_model_flux_rel, model_quantities_from_lc_velr_stellar
 
     Notes
     -----
@@ -1383,7 +1399,7 @@ def model_quantities_from_lc_velr_stellar(
 
     See Also
     --------
-    model_geometry_from_light_curve, model_flux_rel
+    model_geometry_from_light_curve, seg_model_flux_rel
 
     Notes
     -----
