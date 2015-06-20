@@ -311,7 +311,7 @@ def test_calc_z1_z2(
 
 
 def test_ls_are_valid_params(
-    params=(86691.2, 0.06), ref_are_valid=True):
+    params=(86691.2, ), ref_are_valid=True):
     r"""Pytest for code/utils.py:
     ls_are_valid_params
 
@@ -323,7 +323,7 @@ def test_ls_are_valid_params(
 
 # Cases for test_ls_are_valid_params
 test_ls_are_valid_params(
-    params=(-86691.2, 0.06), ref_are_valid=False)
+    params=(-86691.2, ), ref_are_valid=False)
 
 
 def test_ls_model_fluxes_rel_cases():
@@ -376,7 +376,20 @@ def test_ls_model_fluxes_rel_cases():
     return None
 
 
-# TODO: test_ls_log_prior
+def test_ls_log_prior(params=(86691.2, ), ref_lnp=0.0):
+    r"""Pytest for code/utils.py:
+    ls_log_prior
+
+    """
+    test_lnp = code.utils.ls_log_prior(params=params)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_ls_log_prior
+test_ls_log_prior(params=(-86691.2, ), ref_lnp=-np.inf)
+
+
 # TODO: test_ls_log_likelihood
 # TODO: test_ls_log_posterior
 
@@ -415,7 +428,7 @@ def test_seg_model_fluxes_rel(
 
 def test_seg_log_prior(
     params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061), ref_lnp=0.0):
-    """pytest for code/utils.py:
+    """Pytest for code/utils.py:
     seg_log_prior
 
     """

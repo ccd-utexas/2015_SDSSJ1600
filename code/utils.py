@@ -859,7 +859,6 @@ def ls_are_valid_params(params):
     are_valid : bool
         True if all of the following hold:
             If 0 < `best_period`.
-            If 0 < `flux_sigma`.
 
     See Also
     --------
@@ -870,8 +869,8 @@ def ls_are_valid_params(params):
     - See `seg_model_fluxes_rel` for description of parameters.
 
     """
-    (best_period, flux_sigma) = params
-    if 0 < best_period and 0 < flux_sigma:
+    (best_period, ) = params
+    if 0 < best_period:
         are_valid = True
     else:
         are_valid = False
