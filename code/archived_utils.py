@@ -712,3 +712,30 @@ def calc_phased_histogram(
             fluxes=fluxes_mirrored, fluxes_err=fluxes_err_mirrored,
             flux_unit=flux_unit, return_ax=False)
     return (hist_phases, hist_fluxes, hist_fluxes_err)
+
+
+
+@numba.jit(nopython=True)
+def calc_ymeans(hash_filts, hash_unique_filts, ymean_by_filt):
+    r"""For speeding up 
+    gatspy.periodic.lomb_scargle_multiband.LombScargleMultiband
+
+    call with hash_filts = numpy.asarray(map(hash, filts))
+
+    """
+    idx_filt = 0
+    num_filts = len(hash_filts)
+    num_uniqs = len(hash_unique_filts)
+    ymeans = np.empty(num_filts)
+    while idx_filt < num_filts:
+        filt = hash_filts[idx_filt]
+        idx_uniq = 0
+        while idx_uniq < num_uniqs:
+            uniq_filt = hash_unique_filts[idx_uniq]
+            if uniq_filt == filt:
+                ymean = ymean_by_filt[idx_uniq]
+                ymeans[idx_filt] = ymean
+                break
+            idx_uniq += 1
+        idx_filt += 1
+    return ymeans

@@ -111,7 +111,7 @@ def test_plot_periodogram(
 
 
 def test_calc_min_flux_time_cases():
-    r"""Pytest cases for code/utils.py:
+    r"""pytest cases for code/utils.py:
     calc_min_flux_time
 
     """
@@ -140,15 +140,13 @@ def test_calc_min_flux_time_cases():
     for filt in np.unique(filts):
         tfmask = (filt == filts)
         fluxes_rel[tfmask] = \
-            map(
-                lambda mag_1: \
+            map(lambda mag_1: \
                     bss.utils.calc_flux_intg_ratio_from_mags(
                         mag_1=mag_1,
                         mag_2=np.median(mags[tfmask])),
                 mags[tfmask])
         fluxes_rel_err[tfmask] = \
-            map(
-                lambda mag_1, mag_2: \
+            map(lambda mag_1, mag_2: \
                     abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
                         mag_1=mag_1,
                         mag_2=mag_2)),
@@ -161,8 +159,7 @@ def test_calc_min_flux_time_cases():
         code.utils.calc_min_flux_time(
             model=model, filt='z', best_period=best_period, tol=0.1, maxiter=10)
     for (filt, ref_min_flux_time) in \
-        zip(
-            ['u', 'g', 'r', 'i', 'z'],
+        zip(['u', 'g', 'r', 'i', 'z'],
             [0.370657590606, 0.366563989108, 0.375194445097, 0.377970590837,
              0.378704402065]):
         time_window_halfwidth = 0.1 * best_period
@@ -315,7 +312,7 @@ def test_calc_z1_z2(
 
 def test_ls_are_valid_params(
     params=(86691.2, 0.06), ref_are_valid=True):
-    r"""pytest for code/utils.py:
+    r"""Pytest for code/utils.py:
     ls_are_valid_params
 
     """
@@ -329,7 +326,56 @@ test_ls_are_valid_params(
     params=(-86691.2, 0.06), ref_are_valid=False)
 
 
-# TODO: test_ls_model_fluxes_rel
+def test_ls_model_fluxes_rel_cases():
+    r"""Pytest cases for code/utils.py:
+    ls_model_fluxes_rel
+
+    """
+    # Define function for testing cases.
+    def test_ls_model_fluxes_rel(params, model, ref_modeled_fluxes_rel):
+        r"""Pytest for code/utils.py:
+        ls_model_fluxes_rel
+
+        """
+        test_modeled_fluxes_rel = code.utils.ls_model_fluxes_rel(
+            params=params, model=model)
+        assert np.all(np.isclose(
+            ref_modeled_fluxes_rel, test_modeled_fluxes_rel))
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    fluxes_rel = np.empty_like(mags)
+    fluxes_rel_err = np.empty_like(mags_err)
+    for filt in np.unique(filts):
+        tfmask = (filt == filts)
+        fluxes_rel[tfmask] = \
+            map(lambda mag_1: \
+                    bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=np.median(mags[tfmask])),
+                mags[tfmask])
+        fluxes_rel_err[tfmask] = \
+            map(lambda mag_1, mag_2: \
+                    abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=mag_2)),
+                np.add(mags[tfmask], mags_err[tfmask]),
+                mags[tfmask])
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    best_period = rrlyrae.get_metadata(lcid)['P']
+    params = (best_period, )
+    model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+    test_ls_model_fluxes_rel(
+        params=params, model=model,
+        ref_modeled_fluxes_rel=model.predict(
+            t=model.t, filts=model.filts, period=best_period))
+    # TODO: insert additional test cases here.
+    return None
+
+
 # TODO: test_ls_log_prior
 # TODO: test_ls_log_likelihood
 # TODO: test_ls_log_posterior

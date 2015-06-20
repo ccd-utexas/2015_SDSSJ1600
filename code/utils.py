@@ -850,10 +850,9 @@ def ls_are_valid_params(params):
     ----------
     params : tuple
         Tuple of floats as the model parameters.
-        `params = (best_period, flux_sigma)`
+        `params = (best_period, )`
         Units are:
             {best_period} = time, e.g. seconds
-            {flux_sigma} = relative flux
 
     Returns
     -------
@@ -879,7 +878,8 @@ def ls_are_valid_params(params):
     return are_valid
 
 
-@numba.jit(nopython=True)
+# TODO: speed up with @numba.jit(nopython=True)
+# requires rewriting methods within gatspy.
 def ls_model_fluxes_rel(params, model):
     r"""Calculate relative fluxes for a Lomb-Scargle model of the light curve.
 
@@ -887,13 +887,10 @@ def ls_model_fluxes_rel(params, model):
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-        `params = (best_period, flux_sigma)`
+        `params = (best_period, )`
             best_period :  Period that best represents the time series data.
-            flux_sigma: Standard deviation of relative fluxes. Assumes that
-                all fluxes are drawn from the same distribution.
         Units are:
             {best_period} = time, e.g. seconds
-            {flux_sigma} = relative flux
     model : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
@@ -912,7 +909,7 @@ def ls_model_fluxes_rel(params, model):
     - Requires that all input parameters are already checked as valid.
 
     """
-    (best_period, _) = params
+    (best_period, ) = params
     modeled_fluxes_rel = model.predict(
         t=model.t, filts=model.filts, period=best_period)
     return modeled_fluxes_rel
@@ -1194,6 +1191,10 @@ def seg_model_fluxes_rel(params, phases):
     num_phases = len(phases)
     modeled_fluxes_rel = np.empty(num_phases)
     idx = 0
+    m1 = (b2 - b0)/(p2 - p1)
+    b1 = b0 - m1*p1
+    m3 = (b4 - b2)/(p4 - p3)
+    b3 = b2 - m3*p3
     while idx < num_phases:
         phase = phases[idx]
         # ...for primary minima.
@@ -1201,16 +1202,12 @@ def seg_model_fluxes_rel(params, phases):
             modeled_flux_rel = b0
         # ...for primary ingress/egress.
         elif p1 <= phase and phase < p2:
-            m1 = (b2 - b0)/(p2 - p1)
-            b1 = b0 - m1*p1
             modeled_flux_rel = m1*phase + b1
         # ...for between minima.
         elif p2 <= phase and phase < p3:
             modeled_flux_rel = b2
         # ...for secondary ingress/egress.
         elif p3 <= phase and phase < p4:
-            m3 = (b4 - b2)/(p4 - p3)
-            b3 = b2 - m3*p3
             modeled_flux_rel = m3*phase + b3
         # ...for secondary minima.
         elif p4 <= phase:
