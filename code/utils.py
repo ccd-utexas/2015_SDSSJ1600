@@ -31,8 +31,8 @@ sns.set() # Set matplotlib styles by seaborn.
 def calc_period_limits(times):
     r"""Calculate the region of dectable periods.
     
-    Paramters
-    ---------
+    Parameters
+    ----------
     times : numpy.ndarray
         1D array of time coordinates for data.
         Unit is time, e.g. seconds.
@@ -843,13 +843,231 @@ def calc_nterms_base(
 
 
 @numba.jit(nopython=True)
-def seg_are_valid_params(params):
-    """Check if parameters are valid.
+def ls_are_valid_params(params):
+    r"""Check if parameters are valid for Lomb-Scargle light curve model.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+        `params = (best_period, flux_sigma)`
+        Units are:
+            {best_period} = time, e.g. seconds
+            {flux_sigma} = relative flux
+
+    Returns
+    -------
+    are_valid : bool
+        True if all of the following hold:
+            If 0 < `best_period`.
+            If 0 < `flux_sigma`.
+
+    See Also
+    --------
+    ls_model_fluxes_rel
+
+    Notes
+    -----
+    - See `seg_model_fluxes_rel` for description of parameters.
+
+    """
+    (best_period, flux_sigma) = params
+    if 0 < best_period and 0 < flux_sigma:
+        are_valid = True
+    else:
+        are_valid = False
+    return are_valid
+
+
+@numba.jit(nopython=True)
+def ls_model_fluxes_rel(params, model):
+    r"""Calculate relative fluxes for a Lomb-Scargle model of the light curve.
 
     Parameters
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
+        `params = (best_period, flux_sigma)`
+            best_period :  Period that best represents the time series data.
+            flux_sigma: Standard deviation of relative fluxes. Assumes that
+                all fluxes are drawn from the same distribution.
+        Units are:
+            {best_period} = time, e.g. seconds
+            {flux_sigma} = relative flux
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    modeled_fluxes_rel : numpy.ndarray
+        1D array of modeled relative fluxes. Units are relative integrated flux.   
+
+    See Also
+    --------
+    ls_are_valid_params
+
+    Notes
+    -----
+    - Requires that all input parameters are already checked as valid.
+
+    """
+    (best_period, _) = params
+    modeled_fluxes_rel = model.predict(
+        t=model.t, filts=model.filts, period=best_period)
+    return modeled_fluxes_rel
+
+
+@numba.jit(nopython=True)
+def ls_log_prior(params):
+    r"""Log prior of Lomb-Scargle light curve model parameters up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta))
+        if parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    ls_are_valid_params, ls_model_fluxes_rel
+
+    Notes
+    -----
+    - See `ls_model_fluxes_rel` for description of parameters.
+    - This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within constraints.
+        `lnp = -numpy.inf` otherwise.
+
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    
+    """
+    if ls_are_valid_params(params=params):
+        lnp = 0.0
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+@numba.jit(nopython=True)
+def ls_log_likelihood(params, model):
+    r"""Log likelihood of Lomb-Scargle light curve model's relative flux values
+    given model parameters. Log likelihood is calculated up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters, the last
+        of which is the standard deviation of all measurements
+        of relative flux `params = (..., flux_sigma)`.
+        Unit is relative flux. This assumes that all measurements are
+        drawn from the same distribution.
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of relative flux values: ln(p(y|x, theta))
+        If parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    ls_are_valid_params, ls_model_fluxes_rel
+
+    Notes
+    -----
+    - See `ls_model_fluxes_rel` for description of parameters.
+
+    References
+    ----------
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
+
+    """
+    if ls_are_valid_params(params=params):
+        # numba does not support negative indexing `params[-1]`
+        sig = params[len(params)-1]
+        modeled_fluxes_rel = ls_model_fluxes_rel(params=params, model=model)
+        # Calculation for `lnp` adapted from [1]_.
+        # All data are presumed to have the same sigma.
+        log_term = np.log(2.0*np.pi*sig**2.0)
+        idx = 0
+        lnp = 0.0
+        while idx < len(model.y):
+            res = model.y[idx] - modeled_fluxes_rel[idx]
+            res_term = (res / sig)**2.0
+            lnp += -0.5*(log_term + res_term)
+            idx += 1
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+@numba.jit(nopython=True)
+def ls_log_posterior(params, phases, fluxes_rel):
+    r"""Log probability of Lomb-Scargle light curve model parameters
+    given the data. Log probability is calculated up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta|x, y))
+        If parameters outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    ls_are_valid_params, ls_model_fluxes_rel,
+    ls_log_prior, ls_log_likelihood
+
+    Notes
+    -----
+    - See `ls_model_fluxes_rel` for description of parameters.
+
+    References
+    ----------
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
+
+    """
+    if ls_are_valid_params(params=params):
+        # Calculation of `lnp` adapted from [1]_.
+        lnpr = ls_log_prior(params=params)
+        lnlike = ls_log_likelihood(params=params, model=model)
+        lnp = lnpr + lnlike
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+@numba.jit(nopython=True)
+def seg_are_valid_params(params):
+    r"""Check if parameters are valid for segmented, symmetric light curve model.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
         `params = 
             (phase_rel_int, phase_rel_ext,
              flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
@@ -862,14 +1080,19 @@ def seg_are_valid_params(params):
     -------
     are_valid : bool
         True if all of the following hold:
-            If input 0 <= {`phase_rel_int`, `phase_rel_ext`} <= 0.5
-            If input `phase_rel_int` < `phase_rel_ext`.
-            If `flux_sigma` <= 0.
+            If 0 <= {`phase_rel_int`, `phase_rel_ext`} <= 0.5
+            If `phase_rel_int` < `phase_rel_ext`.
+            If 0 < `flux_sigma`.
         False otherwise.
 
     See Also
     --------
-    seg_model_flux_rel
+    seg_model_fluxes_rel
+
+    Notes
+    -----
+    - See `seg_model_fluxes_rel` for description of parameters.
+    - Return bool rather than raise exception for optimization with numba.
 
     """
     # Allow arbitrary flux values for flexibility.
@@ -888,7 +1111,8 @@ def seg_are_valid_params(params):
 
 @numba.jit(nopython=True)
 def seg_model_fluxes_rel(params, phases):
-    """Segmented, symmetric model of folded eclipse light curve.
+    r"""Calculate relative fluxes for a segmented, symmetric model of the
+    folded eclipse light curve.
     
     Parameters
     ----------
@@ -917,8 +1141,12 @@ def seg_model_fluxes_rel(params, phases):
         
     Returns
     -------
-    modeled_fluxes_rel : float
-        Modeled relative flux. Unit is relative integrated flux.
+    modeled_fluxes_rel : numpy.ndarray
+        1D array of modeled relative fluxes. Units are relative integrated flux.
+
+    See Also
+    --------
+    seg_are_valid_params
     
     Notes
     -----
@@ -952,11 +1180,6 @@ def seg_model_fluxes_rel(params, phases):
         primary minima are deeper and easier to detect from observations.
     - The out-of-eclipse flux level (f2 above), is left variable as a
         normalization factor following [1]_.
-    - Return `bool` rather than raise exception for optimization with numba.
-
-    See Also
-    --------
-    are_params_valid
 
     References
     ----------
@@ -964,7 +1187,7 @@ def seg_model_fluxes_rel(params, phases):
     
     """
     # Compute modeled relative flux...
-    (p1, p2, b0, b2, b4, sig) = params
+    (p1, p2, b0, b2, b4, _) = params
     p5 = 0.5
     p4 = p5 - p1
     p3 = p5 - p2
@@ -999,37 +1222,30 @@ def seg_model_fluxes_rel(params, phases):
 
 @numba.jit(nopython=True)
 def seg_log_prior(params):
-    """Log prior of light curve model parameters up to a constant.
-    Light curve is folded so that phase is from 0 to 0.5
+    r"""Log prior of segmented, symmetric light curve model parameters up to a
+    constant. Light curve is folded so that phase is from 0 to 0.5
 
     Parameters
     ----------
     params : tuple
-        Tuple of floats representing the model parameters.
-        `params = 
-            (phase_rel_int, phase_rel_ext,
-             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
-             flux_sigma)`
-        Units are:
-            {phase_*} = decimal orbital phase
-            {flux_*} = relative flux
+        Tuple of floats as the model parameters.
     
     Returns
     -------
     lnp : float
         Log probability of parameters: ln(p(theta))
-        If parameters are outside of acceptible range, `-numpy.inf`.
-    
-    Notes
-    -----
-    - See `seg_model_flux_rel` for description of parameters.
-    - This is an uninformative prior:
-        `lnp = 0.0` if `theta` is within above constraints.
-        `lnp = -numpy.inf` otherwise.
+        If parameters are outside of acceptable range, `-numpy.inf`.
     
     See Also
     --------
-    seg_model_flux_rel
+    seg_are_valid_params, seg_model_fluxes_rel
+
+    Notes
+    -----
+    - See `seg_model_fluxes_rel` for description of parameters.
+    - This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within constraints.
+        `lnp = -numpy.inf` otherwise.
     
     References
     ----------
@@ -1047,14 +1263,14 @@ def seg_log_prior(params):
 
 @numba.jit(nopython=True)
 def seg_log_likelihood(params, phases, fluxes_rel):
-    """Log likelihood of light curve relative flux values given
-    phase values and light curve model parameters. Log likelihood
-    is computed up to a constant.
+    r"""Log likelihood of segmented, symmetric light curve model's relative flux
+    values given phase values and model parameters. Log likelihood is calculated
+    up to a constant.
 
     Parameters
     ----------
     params : tuple
-        Tuple of floats representing the model parameters, the last
+        Tuple of floats as the model parameters, the last
         of which is the standard deviation of all measurements
         of relative flux `params = (..., flux_sigma)`.
         Unit is relative flux. This assumes that all measurements are
@@ -1069,11 +1285,15 @@ def seg_log_likelihood(params, phases, fluxes_rel):
     -------
     lnp : float
         Log probability of relative flux values: ln(p(y|x, theta))
-        If parameters outside of acceptible range, `-numpy.inf`.
+        If parameters outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    seg_are_valid_params, seg_model_fluxes_rel
     
     Notes
     -----
-    - See `seg_model_flux_rel` for description of parameters.
+    - See `seg_model_fluxes_rel` for description of parameters.
 
     References
     ----------
@@ -1086,7 +1306,7 @@ def seg_log_likelihood(params, phases, fluxes_rel):
         # numba does not support negative indexing `params[-1]`
         sig = params[len(params)-1]
         modeled_fluxes_rel = seg_model_fluxes_rel(params=params, phases=phases)
-        # Calculation for `lnp` from [2].
+        # Calculation for `lnp` adapted from [1]_.
         # All data are presumed to have the same sigma.
         log_term = np.log(2.0*np.pi*sig**2.0)
         idx = 0
@@ -1103,14 +1323,13 @@ def seg_log_likelihood(params, phases, fluxes_rel):
 
 @numba.jit(nopython=True)
 def seg_log_posterior(params, phases, fluxes_rel):
-    """Log probability of light curve model parameters
-    given the data. Log probability is computed
-    up to a constant.
+    r"""Log probability of segmented, symmetric light curve model parameters
+    given the data. Log probability is calculated up to a constant.
     
     Parameters
     ----------
     params : tuple
-        Tuple of floats representing the model parameters.
+        Tuple of floats as the model parameters.
     phases : numpy.ndarray
         1D array of phases. Unit is decimal orbital phase.
     fluxes_rel : numpy.ndarray
@@ -1120,12 +1339,17 @@ def seg_log_posterior(params, phases, fluxes_rel):
     Returns
     -------
     lnp : float
-        Log probability of parameters: ln(p(theta|x,y))
-        If parameters outside of acceptible range, `-numpy.inf`.
+        Log probability of parameters: ln(p(theta|x, y))
+        If parameters outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    seg_are_valid_params, seg_model_fluxes_rel,
+    seg_log_prior, seg_log_likelihood
 
     Notes
     -----
-    - See `seg_model_flux_rel` for description of parameters.
+    - See `seg_model_fluxes_rel` for description of parameters.
 
     References
     ----------
@@ -1135,7 +1359,7 @@ def seg_log_posterior(params, phases, fluxes_rel):
     
     """
     if seg_are_valid_params(params=params):
-        # Calculation of `lnp` from [2]_.
+        # Calculation of `lnp` adapted from [1]_.
         lnpr = seg_log_prior(params=params)
         lnlike = seg_log_likelihood(
             params=params, phases=phases, fluxes_rel=fluxes_rel)
@@ -1284,7 +1508,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
         
     See Also
     --------
-    seg_model_flux_rel, model_quantities_from_lc_velr_stellar
+    seg_model_fluxes_rel, model_quantities_from_lc_velr_stellar
 
     Notes
     -----
@@ -1400,7 +1624,7 @@ def model_quantities_from_lc_velr_stellar(
 
     See Also
     --------
-    model_geometry_from_light_curve, seg_model_flux_rel
+    model_geometry_from_light_curve, seg_model_fluxes_rel
 
     Notes
     -----

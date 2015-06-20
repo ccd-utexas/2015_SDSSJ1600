@@ -313,6 +313,13 @@ def test_calc_z1_z2(
 #     return None
 
 
+# TODO: test_ls_are_valid_params
+# TODO: test_ls_model_fluxes_rel
+# TODO: test_ls_log_prior
+# TODO: test_ls_log_likelihood
+# TODO: test_ls_log_posterior
+
+
 def test_seg_are_valid_params(
     params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
     ref_are_valid=True):
@@ -365,7 +372,7 @@ def test_seg_log_likelihood(
     params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
     phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
     fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
-    ref_lnp=1.877942881604153):
+    ref_lnp=7.511771526416612):
     """pytest for code/utils.py:
     seg_log_likelihood
 
@@ -385,7 +392,7 @@ def test_seg_log_posterior(
     params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
     phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
     fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
-    ref_lnp=1.877942881604153):
+    ref_lnp=7.511771526416612):
     """pytest for code/utils.py:
     seg_log_posterior
 
