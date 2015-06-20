@@ -313,7 +313,22 @@ def test_calc_z1_z2(
 #     return None
 
 
-# TODO: test_ls_are_valid_params
+def test_ls_are_valid_params(
+    params=(86691.2, 0.06), ref_are_valid=True):
+    r"""pytest for code/utils.py:
+    ls_are_valid_params
+
+    """
+    test_are_valid = code.utils.ls_are_valid_params(params=params)
+    assert ref_are_valid == test_are_valid
+    return None
+
+
+# Cases for test_ls_are_valid_params
+test_ls_are_valid_params(
+    params=(-86691.2, 0.06), ref_are_valid=False)
+
+
 # TODO: test_ls_model_fluxes_rel
 # TODO: test_ls_log_prior
 # TODO: test_ls_log_likelihood
