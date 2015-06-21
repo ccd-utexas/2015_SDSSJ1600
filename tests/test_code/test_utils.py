@@ -282,37 +282,60 @@ def test_calc_z1_z2(
     return None
 
 
-# def test_calc_num_terms(
-#     times=range(2**7), fluxes=[0,1]*2**6, fluxes_err=[1]*2**7,
-#     best_period=2.0, max_n_terms=2, show_periodograms=False,
-#     show_summary_plots=False, period_unit='seconds', flux_unit='relative',
-#     ref_best_n_terms=1,
-#     ref_phases=np.linspace(start=0, stop=1, num=1000, endpoint=False),
-#     ref_fits_phased=None, ref_times_phased=[0.004, 0.504]*2**6):
-#     r"""pytest for code/utils.py:
-#     calc_num_terms
+# # TODO: fix test and speedup
+# def test_calc_nterms_base_cases():
+#     r"""Pytest cases for code/utils.py:
+#     calc_nterms_base
 
 #     """
-#     (test_best_n_terms, test_phases, test_fits_phased, test_times_phased) = \
-#         code.utils.calc_num_terms(
-#             times=times, fluxes=fluxes, fluxes_err=fluxes_err,
-#             best_period=best_period, max_n_terms=max_n_terms,
+#     # Define function for testing cases.
+#     def test_calc_nterms_base(
+#         model, ref_model_best, max_nterms_base=20, show_summary_plots=False,
+#         show_periodograms=False, period_unit='seconds', flux_unit='relative'):
+#         r"""Pytest for code/utils.py:
+#         test_calc_nterms_base
+
+#         """
+#         test_model_best = code.utils.calc_nterms_base(
+#             model=model, max_nterms_base=max_nterms_base,
+#             show_summary_plots=show_summary_plots,
 #             show_periodograms=show_periodograms,
-#             show_summary_plots=show_summary_plots, period_unit=period_unit,
-#             flux_unit=flux_unit)
-#     assert ref_best_n_terms == test_best_n_terms
-#     assert np.all(np.isclose(ref_phases, test_phases))
-#     if ref_fits_phased is None:
-#         assert len(ref_phases) == len(test_fits_phased)
-#     else:
-#         assert np.all(np.isclose(ref_fits_phased, test_fits_phased))
-#     assert np.all(np.isclose(ref_times_phased, test_times_phased))
+#             period_unit=period_unit, flux_unit=flux_unit)
+#         assert ref_model_best.Nterms_base == test_model_best.Nterms_base
+#         return None
+#     # Test adapted from
+#     # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+#     rrlyrae = gatspy_data.fetch_rrlyrae()
+#     lcid = rrlyrae.ids[0]
+#     (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+#     fluxes_rel = np.empty_like(mags)
+#     fluxes_rel_err = np.empty_like(mags_err)
+#     for filt in np.unique(filts):
+#         tfmask = (filt == filts)
+#         fluxes_rel[tfmask] = \
+#             map(lambda mag_1: \
+#                     bss.utils.calc_flux_intg_ratio_from_mags(
+#                         mag_1=mag_1,
+#                         mag_2=np.median(mags[tfmask])),
+#                 mags[tfmask])
+#         fluxes_rel_err[tfmask] = \
+#             map(lambda mag_1, mag_2: \
+#                     abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+#                         mag_1=mag_1,
+#                         mag_2=mag_2)),
+#                 np.add(mags[tfmask], mags_err[tfmask]),
+#                 mags[tfmask])
+#     model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+#     model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+#     test_calc_nterms_base(
+#         model=model, ref_model_best=model, max_nterms_base=20,
+#         show_summary_plots=True, show_periodograms=False,
+#         period_unit='seconds', flux_unit='relative')
+#     # TODO: insert additional test cases here.
 #     return None
 
 
 # TODO: combine test_ls_*_cases below.
-
-
 def test_ls_are_valid_params_cases():
     r"""Pytest cases for code/utils.py:
     ls_are_valid_params
