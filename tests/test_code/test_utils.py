@@ -310,20 +310,53 @@ def test_calc_z1_z2(
 #     return None
 
 
-def test_ls_are_valid_params(
-    params=(86691.2, ), ref_are_valid=True):
-    r"""Pytest for code/utils.py:
+# TODO: combine test_ls_*_cases below.
+
+
+def test_ls_are_valid_params_cases():
+    r"""Pytest cases for code/utils.py:
     ls_are_valid_params
 
     """
-    test_are_valid = code.utils.ls_are_valid_params(params=params)
-    assert ref_are_valid == test_are_valid
+    # Define function for testing cases.
+    def test_ls_are_valid_params(params, model, ref_are_valid):
+        r"""Pytest for code/utils.py:
+        ls_are_valid_params
+
+        """
+        test_are_valid = code.utils.ls_are_valid_params(
+            params=params, model=model)
+        assert ref_are_valid == test_are_valid
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    fluxes_rel = np.empty_like(mags)
+    fluxes_rel_err = np.empty_like(mags_err)
+    for filt in np.unique(filts):
+        tfmask = (filt == filts)
+        fluxes_rel[tfmask] = \
+            map(lambda mag_1: \
+                    bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=np.median(mags[tfmask])),
+                mags[tfmask])
+        fluxes_rel_err[tfmask] = \
+            map(lambda mag_1, mag_2: \
+                    abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=mag_2)),
+                np.add(mags[tfmask], mags_err[tfmask]),
+                mags[tfmask])
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    best_period = rrlyrae.get_metadata(lcid)['P']
+    params = (best_period)
+    model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+    test_ls_are_valid_params(params=params, model=model, ref_are_valid=True)
+    # TODO: insert additional test cases here.
     return None
-
-
-# Cases for test_ls_are_valid_params
-test_ls_are_valid_params(
-    params=(-86691.2, ), ref_are_valid=False)
 
 
 def test_ls_model_fluxes_rel_cases():
@@ -366,7 +399,7 @@ def test_ls_model_fluxes_rel_cases():
                 mags[tfmask])
     model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
     best_period = rrlyrae.get_metadata(lcid)['P']
-    params = (best_period, )
+    params = (best_period)
     model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
     test_ls_model_fluxes_rel(
         params=params, model=model,
@@ -376,22 +409,143 @@ def test_ls_model_fluxes_rel_cases():
     return None
 
 
-def test_ls_log_prior(params=(86691.2, ), ref_lnp=0.0):
-    r"""Pytest for code/utils.py:
+def test_ls_log_prior_cases():
+    r"""Pytest cases for code/utils.py:
     ls_log_prior
 
     """
-    test_lnp = code.utils.ls_log_prior(params=params)
-    assert np.isclose(ref_lnp, test_lnp)
+    # Define function for testing cases.
+    def test_ls_log_prior(params, model, ref_lnp):
+        r"""Pytest for code/utils.py:
+        ls_log_prior
+
+        """
+        test_lnp = code.utils.ls_log_prior(params=params, model=model)
+        assert np.isclose(ref_lnp, test_lnp)
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    fluxes_rel = np.empty_like(mags)
+    fluxes_rel_err = np.empty_like(mags_err)
+    for filt in np.unique(filts):
+        tfmask = (filt == filts)
+        fluxes_rel[tfmask] = \
+            map(lambda mag_1: \
+                    bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=np.median(mags[tfmask])),
+                mags[tfmask])
+        fluxes_rel_err[tfmask] = \
+            map(lambda mag_1, mag_2: \
+                    abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=mag_2)),
+                np.add(mags[tfmask], mags_err[tfmask]),
+                mags[tfmask])
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    best_period = rrlyrae.get_metadata(lcid)['P']
+    params = (best_period)
+    model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+    test_ls_log_prior(params=params, model=model, ref_lnp=0.0)
+    # TODO: insert additional test cases here.
     return None
 
 
-# Cases for test_ls_log_prior
-test_ls_log_prior(params=(-86691.2, ), ref_lnp=-np.inf)
+def test_ls_log_likelihood_cases():
+    r"""Pytest cases for code/utils.py:
+    ls_log_likelihood
+
+    """
+    # Define function for testing cases.
+    def test_ls_log_likelihood(params, model, ref_lnp):
+        r"""Pytest for code/utils.py:
+        ls_log_likelihood
+
+        """
+        test_lnp = code.utils.ls_log_likelihood(
+            params=params, model=model)
+        assert np.isclose(ref_lnp, test_lnp)
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    fluxes_rel = np.empty_like(mags)
+    fluxes_rel_err = np.empty_like(mags_err)
+    for filt in np.unique(filts):
+        tfmask = (filt == filts)
+        fluxes_rel[tfmask] = \
+            map(lambda mag_1: \
+                    bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=np.median(mags[tfmask])),
+                mags[tfmask])
+        fluxes_rel_err[tfmask] = \
+            map(lambda mag_1, mag_2: \
+                    abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=mag_2)),
+                np.add(mags[tfmask], mags_err[tfmask]),
+                mags[tfmask])
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    best_period = rrlyrae.get_metadata(lcid)['P']
+    params = (best_period)
+    model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+    test_ls_log_likelihood(
+        params=params, model=model, ref_lnp=-4200.6511888667446)
+    # TODO: insert additional test cases here.
+    return None
 
 
-# TODO: test_ls_log_likelihood
-# TODO: test_ls_log_posterior
+def test_ls_log_posterior_cases():
+    r"""Pytest cases for code/utils.py:
+    ls_log_posterior
+
+    """
+    # Define function for testing cases.
+    def test_ls_log_posterior(params, model, ref_lnp):
+        r"""Pytest for code/utils.py:
+        ls_log_posterior
+
+        """
+        test_lnp = code.utils.ls_log_posterior(
+            params=params, model=model)
+        assert np.isclose(ref_lnp, test_lnp)
+        return None
+    # Test adapted from
+    # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
+    rrlyrae = gatspy_data.fetch_rrlyrae()
+    lcid = rrlyrae.ids[0]
+    (times, mags, mags_err, filts) = rrlyrae.get_lightcurve(lcid)
+    fluxes_rel = np.empty_like(mags)
+    fluxes_rel_err = np.empty_like(mags_err)
+    for filt in np.unique(filts):
+        tfmask = (filt == filts)
+        fluxes_rel[tfmask] = \
+            map(lambda mag_1: \
+                    bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=np.median(mags[tfmask])),
+                mags[tfmask])
+        fluxes_rel_err[tfmask] = \
+            map(lambda mag_1, mag_2: \
+                    abs(1.0 - bss.utils.calc_flux_intg_ratio_from_mags(
+                        mag_1=mag_1,
+                        mag_2=mag_2)),
+                np.add(mags[tfmask], mags_err[tfmask]),
+                mags[tfmask])
+    model = gatspy_per.LombScargleMultiband(Nterms_base=6, Nterms_band=1)
+    best_period = rrlyrae.get_metadata(lcid)['P']
+    params = (best_period)
+    model.fit(t=times, y=fluxes_rel, dy=fluxes_rel_err, filts=filts)
+    test_ls_log_posterior(
+        params=params, model=model, ref_lnp=-4200.6511888667446)
+    # TODO: insert additional test cases here.
+    return None
 
 
 def test_seg_are_valid_params(

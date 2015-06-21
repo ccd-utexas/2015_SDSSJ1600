@@ -587,13 +587,13 @@ def plot_phased_light_curve(
             np.append(tess_fit_phases, np.add(fit_phases, begin_phase + 1.0))
         tess_fit_fluxes = np.append(tess_fit_fluxes, fit_fluxes)
     # Plot tesselated light curve.
-    plt_kwargs = dict(marker='.', linestyle='', linewidth=1)
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.errorbar(
         tess_phases, tess_fluxes, tess_fluxes_err, ecolor='gray',
-        label='observed', **plt_kwargs)
-    ax.plot(tess_fit_phases, tess_fit_fluxes, label='fit', **plt_kwargs)
+        marker='.', linestyle='', linewidth=1, label='observed')
+    ax.plot(tess_fit_phases, tess_fit_fluxes,
+        marker='', linestyle='-', label='fit')
     ax.legend(loc='upper left')
     ax.set_title("Phased light curve")
     ax.set_xlabel("Orbital phase (decimal)")
@@ -842,23 +842,27 @@ def calc_nterms_base(
     return model_best
 
 
-@numba.jit(nopython=True)
-def ls_are_valid_params(params):
+# TODO: speedup with @numba.jit(nopython=True)
+def ls_are_valid_params(params, model):
     r"""Check if parameters are valid for Lomb-Scargle light curve model.
 
     Parameters
     ----------
     params : tuple
         Tuple of floats as the model parameters.
-        `params = (best_period, )`
+        `params = (best_period)`
         Units are:
             {best_period} = time, e.g. seconds
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
 
     Returns
     -------
     are_valid : bool
         True if all of the following hold:
-            If 0 < `best_period`.
+            If 0 < `min_period` <= `best_period` <= `max_period`
+            where `(min_period, max_period) = model.optimizer.period_range`
 
     See Also
     --------
@@ -869,8 +873,10 @@ def ls_are_valid_params(params):
     - See `seg_model_fluxes_rel` for description of parameters.
 
     """
-    (best_period, ) = params
-    if 0 < best_period:
+    (best_period) = params
+    (min_period, max_period) = model.optimizer.period_range
+    if ((0 < min_period) and (min_period <= best_period) and
+        (best_period <= max_period)):
         are_valid = True
     else:
         are_valid = False
@@ -886,7 +892,7 @@ def ls_model_fluxes_rel(params, model):
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-        `params = (best_period, )`
+        `params = (best_period)`
             best_period :  Period that best represents the time series data.
         Units are:
             {best_period} = time, e.g. seconds
@@ -908,20 +914,23 @@ def ls_model_fluxes_rel(params, model):
     - Requires that all input parameters are already checked as valid.
 
     """
-    (best_period, ) = params
+    (best_period) = params
     modeled_fluxes_rel = model.predict(
         t=model.t, filts=model.filts, period=best_period)
     return modeled_fluxes_rel
 
 
-@numba.jit(nopython=True)
-def ls_log_prior(params):
+# TODO: speedup with @numba.jit(nopython=True)
+def ls_log_prior(params, model):
     r"""Log prior of Lomb-Scargle light curve model parameters up to a constant.
 
     Parameters
     ----------
     params : tuple
         Tuple of floats as the model parameters.
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
 
     Returns
     -------
@@ -947,14 +956,14 @@ def ls_log_prior(params):
     ..[3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if ls_are_valid_params(params=params):
+    if ls_are_valid_params(params=params, model=model):
         lnp = 0.0
     else:
         lnp = -np.inf
     return lnp
 
 
-@numba.jit(nopython=True)
+# TODO: speedup with @numba.jit(nopython=True)
 def ls_log_likelihood(params, model):
     r"""Log likelihood of Lomb-Scargle light curve model's relative flux values
     given model parameters. Log likelihood is calculated up to a constant.
@@ -962,11 +971,7 @@ def ls_log_likelihood(params, model):
     Parameters
     ----------
     params : tuple
-        Tuple of floats as the model parameters, the last
-        of which is the standard deviation of all measurements
-        of relative flux `params = (..., flux_sigma)`.
-        Unit is relative flux. This assumes that all measurements are
-        drawn from the same distribution.
+        Tuple of floats as the model parameters.
     model : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
@@ -992,27 +997,19 @@ def ls_log_likelihood(params, model):
     .. [3] http://dan.iel.fm/emcee/current/user/line/
 
     """
-    if ls_are_valid_params(params=params):
-        # numba does not support negative indexing `params[-1]`
-        sig = params[len(params)-1]
+    if ls_are_valid_params(params=params, model=model):
         modeled_fluxes_rel = ls_model_fluxes_rel(params=params, model=model)
         # Calculation for `lnp` adapted from [1]_.
-        # All data are presumed to have the same sigma.
-        log_term = np.log(2.0*np.pi*sig**2.0)
-        idx = 0
-        lnp = 0.0
-        while idx < len(model.y):
-            res = model.y[idx] - modeled_fluxes_rel[idx]
-            res_term = (res / sig)**2.0
-            lnp += -0.5*(log_term + res_term)
-            idx += 1
+        log_terms = np.log(2.0*np.pi*model.dy**2.0)
+        res_terms = ((model.y - modeled_fluxes_rel) / model.dy)**2.0
+        lnp = -0.5*np.sum(log_terms + res_terms)
     else:
         lnp = -np.inf
     return lnp
 
 
-@numba.jit(nopython=True)
-def ls_log_posterior(params, phases, fluxes_rel):
+# TODO: speed up with @numba.jit(nopython=True)
+def ls_log_posterior(params, model):
     r"""Log probability of Lomb-Scargle light curve model parameters
     given the data. Log probability is calculated up to a constant.
 
@@ -1046,9 +1043,9 @@ def ls_log_posterior(params, phases, fluxes_rel):
     .. [3] http://dan.iel.fm/emcee/current/user/line/
 
     """
-    if ls_are_valid_params(params=params):
+    if ls_are_valid_params(params=params, model=model):
         # Calculation of `lnp` adapted from [1]_.
-        lnpr = ls_log_prior(params=params)
+        lnpr = ls_log_prior(params=params, model=model)
         lnlike = ls_log_likelihood(params=params, model=model)
         lnp = lnpr + lnlike
     else:
