@@ -17,7 +17,7 @@ import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
 import binstarsolver as bss
-import gatspy.periodic as gastpy_per
+import gatspy.periodic as gatspy_per
 import matplotlib.pyplot as plt
 import numba
 import numpy as np
@@ -31,11 +31,11 @@ sns.set() # Set matplotlib styles by seaborn.
 def calc_period_limits(times):
     r"""Calculate the region of dectable periods.
     
-    Paramters
-    ---------
+    Parameters
+    ----------
     times : numpy.ndarray
         1D array of time coordinates for data.
-        Unit is time, e.g. seconds or days.
+        Unit is time, e.g. seconds.
     
     Returns
     -------
@@ -79,81 +79,6 @@ def calc_period_limits(times):
     return (min_period, max_period, num_periods)
 
 
-def plot_periodogram(
-    periods, powers, xscale='log', period_unit='seconds',
-    flux_unit='relative', legend=False, return_ax=False):
-    r"""Plot the periods and relative powers for a multiband generalized
-    Lomb-Scargle periodogram. Convenience function for methods from
-    [1]_, [2]_.
-
-    Parameters
-    ----------
-    periods : numpy.ndarray
-        1D array of periods. Unit is time, e.g. seconds or days.
-    powers : numpy.ndarray
-        1D array of powers. Unit is relative Lomb-Scargle power spectral density
-        from flux and angular frequency, e.g. from relative flux,
-        angular frequency 2*pi/seconds.
-    xscale : {'log', 'linear'}, string, optional
-        `matplotlib.pyplot` attribute to plot periods x-scale in
-        'log' (default) or 'linear' scale.
-    period_unit : {'seconds'}, string, optional
-    flux_unit : {'relative'}, string, optional
-        Strings describing period and flux units for labeling the plot.
-        Example: period_unit='seconds', flux_unit='relative' will label
-        the x-axis with "Period (seconds)"
-        and label the y-axis with
-        "Relative Lomb-Scargle Power Spectral Density" +
-        "(from flux in relative, ang. freq. in 2*pi/seconds)".
-    legend : {False, True}, bool, optional
-        If `False` (default), do not show a legend.
-        If `True`, label the periodogram plot and create a legend.
-    return_ax : {False, True}, bool, optional
-        If `False` (default), show the periodogram plot. Return `None`.
-        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
-        instance for additional modification.
-
-    Returns
-    -------
-    ax : matplotlib.axes
-        Returned only if `return_ax` is `True`. Otherwise returns `None`.
-
-    See Also
-    --------
-    plot_phased_light_curve
-
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    .. [2] VanderPlas and Ivezic, 2015,
-           http://adsabs.harvard.edu/abs/2015arXiv150201344V
-    
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, xscale=xscale)
-    if legend:
-        label = 'relative L-S PSD'
-    else:
-        label = None
-    ax.plot(periods, powers, marker='.', label=label)
-    if legend:
-        ax.legend(loc='upper left')
-    ax.set_xlim(min(periods), max(periods))
-    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
-    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
-    ax.set_ylabel(
-        ("Relative Lomb-Scargle power spectral density\n" +
-         "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
-            funit=flux_unit, punit=period_unit))
-    if return_ax:
-        return_obj = ax
-    else:
-        plt.show()
-        return_obj = None
-    return return_obj
-
-
 def calc_sig_levels(
     model, sigs=(95.0, 99.0, 99.9), num_periods=20, num_shuffles=1000):
     r"""Calculate relative powers that correspond to significance levels for
@@ -179,13 +104,15 @@ def calc_sig_levels(
     -------
     sig_periods : numpy.ndarray
         Periods at which significance levels were computed.
+        Units are time, same as `model.t`
     sig_powers : dict
         `dict` of `numpy.ndarray`. Keys are `sigs`. Values are relative powers
-        for each significance level as a `numpy.ndarray`.
+        for each significance level as a `numpy.ndarray`. Units are relative
+        power from `model.periodogram`.
 
     See Also
     --------
-    gatspy.periodic.LombScargleMultiband, calc_period_limits
+    gatspy.periodic.LombScargleMultiband, calc_period_limits, plot_periodogram
 
     Notes
     -----
@@ -227,6 +154,95 @@ def calc_sig_levels(
     sig_powers = \
         {sig: np.percentile(a=sig_powers_arr, q=sig, axis=0) for sig in sigs}
     return (sig_periods, sig_powers)
+
+
+def plot_periodogram(
+    periods, powers, best_period=None, sig_periods=None, sig_powers=None,
+    xscale='log', period_unit='seconds', flux_unit='relative', return_ax=False):
+    r"""Plot relative power vs period for a Lomb-Scargle periodogram.
+    Convenience function for methods from [1]_, [2]_.
+
+    Parameters
+    ----------
+    periods : numpy.ndarray
+        1D array of periods. Unit is time, e.g. seconds.
+    powers : numpy.ndarray
+        1D array of powers. Unit is relative Lomb-Scargle power spectral density
+        from flux and angular frequency, e.g. from relative flux,
+        angular frequency 2*pi/seconds.
+    best_period : {None}, float, optional
+        Period of light curve model that best represents the time series data.
+        Unit is same as `periods`.
+    sig_periods : {None}, numpy.ndarray, optional
+        Periods at which significance levels were computed.
+        Units are same as `periods`.
+    sig_powers : {None}, dict, optional
+        `dict` of `numpy.ndarray`. Keys are significance levels. Values are
+        relative powers for each significance level as a `numpy.ndarray`.
+        Units are same as `powers`.
+    xscale : {'log', 'linear'}, string, optional
+        `matplotlib.pyplot` attribute to plot periods x-scale in
+        'log' (default) or 'linear' scale.
+    period_unit : {'seconds'}, string, optional
+    flux_unit : {'relative'}, string, optional
+        Strings describing period and flux units for labeling the plot.
+        Example: period_unit='seconds', flux_unit='relative' will label
+        the x-axis with "Period (seconds)"
+        and label the y-axis with
+        "Relative Lomb-Scargle Power Spectral Density" +
+        "(from flux in relative, ang. freq. in 2*pi/seconds)".
+    return_ax : {False, True}, bool, optional
+        If `False` (default), show the periodogram plot. Return `None`.
+        If `True`, do not show the periodogram plot. Return a `matplotlib.axes`
+        instance for additional modification.
+
+    Returns
+    -------
+    ax : matplotlib.axes
+        Returned only if `return_ax` is `True`. Otherwise returns `None`.
+
+    See Also
+    --------
+    plot_phased_light_curve, calc_sig_levels
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+    
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(111, xscale=xscale)
+    ax.plot(
+        periods, powers, color=sns.color_palette()[0],
+        marker='.', label='relative L-S PSD')
+    if best_period is not None:
+        ax.axvline(
+            x=best_period, color=sns.color_palette()[1],
+            linestyle=':', label='best period')
+    if (sig_periods is not None) and (sig_powers is not None):
+        sig_label = str(sig_powers.keys())+'\npercentile sig.'
+        for sig in sig_powers.keys():
+            ax.plot(
+                sig_periods, sig_powers[sig], color=sns.color_palette()[2],
+                linestyle='--', marker='.', label=sig_label)
+            sig_label=None
+    ax.legend(loc='upper left')
+    ax.set_xlim(min(periods), max(periods))
+    ax.set_title("Multiband generalized Lomb-Scargle periodogram")
+    ax.set_xlabel(("Period ({punit})").format(punit=period_unit))
+    ax.set_ylabel(
+        ("Relative Lomb-Scargle power spectral density\n" +
+         "(from flux in {funit}, ang. freq. in 2*pi/{punit})").format(
+            funit=flux_unit, punit=period_unit))
+    if return_ax:
+        return_obj = ax
+    else:
+        plt.show()
+        return_obj = None
+    return return_obj
 
 
 def calc_min_flux_time(
@@ -404,7 +420,7 @@ def calc_phases(times, best_period, min_flux_time=0.0):
     ----------
     times : numpy.ndarray
         1D array of time coordinates of observed data.
-        Units are time, e.g. seconds or days.
+        Units are time, e.g. seconds.
     best_period : float
         Period that best represents the time series. Unit is same as `times`.
     min_flux_time : {0.0}, float, optional
@@ -454,7 +470,7 @@ def calc_next_phase0_time(time, phase, best_period):
     Parameters
     ----------
     time : float
-        Time coordinate. Units is time, e.g. seconds or days.
+        Time coordinate. Units is time, e.g. seconds.
     phase : float
         Phase of `time`. Unit is decimal phase.
         Required: 0.0 <= phase <= 1.0
@@ -494,7 +510,7 @@ def calc_next_phase0_time(time, phase, best_period):
 
 def plot_phased_light_curve(
     phases, fluxes, fluxes_err, fit_phases, fit_fluxes,
-    flux_unit='relative', legend=False, return_ax=False):
+    flux_unit='relative', return_ax=False):
     r"""Plot a phased light curve. Convenience function for plot formats
     from [1]_, [2]_.
 
@@ -518,9 +534,6 @@ def plot_phased_light_curve(
         String describing flux units for labeling the plot.
         Example: flux_unit='relative' will label the y-axis
         with "Flux (relative)".
-    legend : {False, True}, bool, optional
-        If `False` (default), do not show a legend.
-        If `True`, label the periodogram plot and create a legend.
     return_ax : {False, True}, bool
         If `False` (default), show the periodogram plot. Return `None`.
         If `True`, return a `matplotlib.axes` instance
@@ -574,19 +587,14 @@ def plot_phased_light_curve(
             np.append(tess_fit_phases, np.add(fit_phases, begin_phase + 1.0))
         tess_fit_fluxes = np.append(tess_fit_fluxes, fit_fluxes)
     # Plot tesselated light curve.
-    if legend:
-        (label_obs, label_fit) = ('observed', 'fit')
-    else:
-        (label_obs, label_fit) = (None, None)
-    plt_kwargs = dict(marker='.', linestyle='', linewidth=1)
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.errorbar(
         tess_phases, tess_fluxes, tess_fluxes_err, ecolor='gray',
-        label=label_obs, **plt_kwargs)
-    ax.plot(tess_fit_phases, tess_fit_fluxes, label=label_fit, **plt_kwargs)
-    if legend:
-        ax.legend(loc='upper left')
+        marker='.', linestyle='', linewidth=1, label='observed')
+    ax.plot(tess_fit_phases, tess_fit_fluxes,
+        marker='', linestyle='-', label='fit')
+    ax.legend(loc='upper left')
     ax.set_title("Phased light curve")
     ax.set_xlabel("Orbital phase (decimal)")
     ax.set_ylabel("Flux ({unit})".format(unit=flux_unit))
@@ -639,36 +647,450 @@ def calc_residual_fluxes(
     return (residual_fluxes, resampled_fit_fluxes)
 
 
-@numba.jit
-def are_valid_params(params):
-    """Check if parameters are valid.
+def calc_z1_z2(
+    dist):
+    r"""Calculate a rank-based measure of Gaussianity in the core
+    and tail of a distribution.
     
     Parameters
     ----------
+    dist : array_like
+        Distribution to evaluate. 1D array of `float`.
+    
+    Returns
+    -------
+    z1 : float
+    z2 : float
+        Departure of distribution core (z1) or tails (z2) from that of a
+        Gaussian distribution in number of sigma.
+        
+    Notes
+    -----
+    - From section 4.7.4 of [1]_:
+        z1 = 1.3 * (abs(mu - median) / sigma) * sqrt(num_dist)
+        z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * sqrt(num_dist)
+        where mu = mean(residuals), median = median(residuals),
+        sigma = standard_deviation(residuals), num_dist = len(dist)
+        sigmaG = sigmaG(dist) = rank_based_standard_deviation(dist) (from [1]_)
+    - Interpretation:
+        For z1 = 1.0, the probability of a true Gaussian distribution also with
+        z1 > 1.0 is ~32% and is equivalent to a two-tailed p-value |z1| > 1.0.
+        The same is true for z2.
+    
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    
+    """
+    (mu, sigma) = astroML_stats.mean_sigma(dist)
+    (median, sigmaG) = astroML_stats.median_sigmaG(dist)
+    num_dist = len(dist)
+    z1 = 1.3 * (abs(mu - median) / sigma) * np.sqrt(num_dist)
+    z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * np.sqrt(num_dist)
+    return (z1, z2)
+
+
+def calc_nterms_base(
+    model, max_nterms_base=20, show_summary_plots=True, 
+    show_periodograms=False, period_unit='seconds', flux_unit='relative'):
+    r"""Calculate the number of Fourier terms that best represent a `gatspy`
+    base model of the data's variability. The model is a multi-band, multi-term
+    generalized Lomb-Scargle periodogram. Convenience function for methods
+    from [1]_, [2]_.
+       
+    Parameters
+    ----------
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+    max_nterms_base : {20}, int, optional
+        Maximum number of Fourier terms to attempt fitting for `gatspy`
+        base model.
+    show_periodograms : {False, True}, bool, optional
+        If `False` (default), do not display periodograms (power vs period)
+        for each candidate number of base terms. Used for debugging.
+    show_summary_plots : {True, False}, bool, optional
+        If `True` (default), display summary plots of delta BIC vs number of
+        base terms, periodogram and phased light curve for best fit number of
+        base terms.
+    period_unit : {'seconds'}, string, optional
+    flux_unit : {'relative'}, string, optional
+        Strings describing period and flux units for labeling the plots.
+
+    Returns
+    -------
+    model_best : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy` with optimal number of terms for the base model.
+        The number of terms is determined by the maximum
+        Bayesian Information Criterion, adapted from section 10.3.3 of [1]_
+        and `astroML.time_series.lomb_scargle_BIC`. A new best period is
+        computed for the optimized model.
+
+    See Also
+    --------
+    gatspy.periodic.LombScargleMultiband, calc_perod_limits
+
+    Notes
+    -----
+    - From [2]_, the "base" model is the relative shape of a light curve and
+        is common to all filters. The "band" model is the phase offset of the
+        light curve between filters.
+    - From 10.3.3 of [1]_, many light curves of eclipses are well
+        represented with ~6 terms.
+    - The number of terms in the "band" model is not changed when computing the
+        Bayesian Information Criterion values. From [2]_, `gatspy`
+        performs best when model.Nterms_band >= model.Nterms_base.
+    - Both the number of terms in the "base" model and in the "band" model
+        are included in the calculation of the Bayesian Information Criterion.
+
+    References
+    ----------
+    .. [1] Ivezic et al, 2014,
+           "Statistics, Data Mining, and Machine Learning in Astronomy"
+    .. [2] VanderPlas and Ivezic, 2015,
+           http://adsabs.harvard.edu/abs/2015arXiv150201344V
+    
+    """
+    # Recursive copy input models to avoid altering.
+    model_init  = copy.deepcopy(model)
+    # Define zoomed period space around best period for computing the powers.
+    # Ensure that period space is sampled at much greater resolution than the
+    # data. Period space is sampled linearly in the zoomed periodogram.
+    (min_period, max_period, num_periods) = \
+        calc_period_limits(times=model_init.t)
+    delta_period = (max_period - min_period) / num_periods
+    zoom_num_periods = 1000
+    oversample_factor = 0.002
+    zoom_period_halfwidth =  \
+        (zoom_num_periods/2.0) * delta_period * oversample_factor
+    zoom_min_period = model_init.best_period - zoom_period_halfwidth
+    zoom_max_period = model_init.best_period + zoom_period_halfwidth
+    zoom_periods = \
+        np.clip(
+            np.linspace(
+                start=zoom_min_period, stop=zoom_max_period,
+                num=zoom_num_periods, endpoint=True),
+            min_period, max_period)
+    # Compute Bayesian Information Criterion values for
+    # Nterms_band <= nterms_base <= max_nterms_base.
+    # NOTE: model_test.Nterms_band should always == model_init.Nterms_band,
+    # i.e. only model_test.Nterms_base ever changes.
+    nterms_base_bics = []
+    for nterms_base in xrange(model_init.Nterms_band, max_nterms_base+1):
+        model_test = copy.deepcopy(model_init)
+        model_test.Nterms_base = nterms_base
+        # Refit the model to the data with the updated nterms_base
+        model_test.fit(
+            t=model_test.t, y=model_test.y,
+            dy=model_test.dy, filts=model_test.filts)
+        zoom_powers = model_test.periodogram(periods=zoom_periods)
+        rel_bic = \
+            max(
+                astroML_ts.lomb_scargle_BIC(
+                    P=zoom_powers, y=model_test.y, dy=model_test.dy,
+                    n_harmonics=model_test.Nterms_base+model_test.Nterms_band))
+        nterms_base_bics.append((nterms_base, rel_bic))
+        if show_periodograms:
+            print(80*'-')
+            plot_periodogram(
+                periods=zoom_periods, powers=zoom_powers, xscale='linear',
+                period_unit='seconds', flux_unit='relative', return_ax=False)
+            print("Number of Fourier terms for base model: {num}".format(
+                num=model_test.Nterms_base))
+            print("Bayesian Information Criterion: {bic}".format(
+                bic=rel_bic))
+        assert model_init.Nterms_band == model_test.Nterms_band
+    # Choose the best number of Fourier terms from the maximum delta BIC.
+    # Create optimized model and recompute best period.
+    best_idx = np.argmax(zip(*nterms_base_bics)[1])
+    (best_nterms_base, best_bic) = nterms_base_bics[best_idx]
+    model_best = \
+        gatspy_per.LombScargleMultiband(
+            Nterms_base=best_nterms_base, Nterms_band=model_init.Nterms_band)
+    model_best.fit(
+            t=model_init.t, y=model_init.y,
+            dy=model_init.dy, filts=model_init.filts)
+    # Speed up the finding the best period by setting the period_range to the
+    # zoomed window. Set period_range to that of model_init at completion.
+    model_best.optimizer.period_range = (zoom_min_period, zoom_max_period)
+    model_best.best_period
+    model_best.optimizer.period_range = model_init.optimizer.period_range
+    if show_summary_plots:
+        # Plot delta BICs after all terms have been fit.
+        print(80*'-')
+        nterms_base_bics_t = zip(*nterms_base_bics)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(nterms_base_bics_t[0], nterms_base_bics_t[1], marker='.')
+        ax.set_title("Bayesian Information Criterion vs\n" +
+                     "number of Fourier terms for base model")
+        ax.set_xlabel("Number of Fourier terms")
+        ax.set_ylabel("BIC")
+        plt.show()
+        zoom_powers = model_best.periodogram(periods=zoom_periods)
+        plot_periodogram(
+            periods=zoom_periods, powers=zoom_powers, xscale='linear',
+            period_unit='seconds', flux_unit='relative', return_ax=False)
+        print("Best number of Fourier terms for base model: {num}".format(
+            num=best_nterms_base))
+        print("Bayesian Information Criterion: {bic}".format(
+            bic=best_bic))
+        print("Best period for base model: {per} {unit}".format(
+            per=model_best.best_period, unit=period_unit))
+    return model_best
+
+
+# TODO: speedup with @numba.jit(nopython=True)
+def ls_are_valid_params(params, model):
+    r"""Check if parameters are valid for Lomb-Scargle light curve model.
+
+    Parameters
+    ----------
     params : tuple
-        Tuple of floats representing the model parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
+        Tuple of floats as the model parameters.
+        `params = (best_period)`
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
+            {best_period} = time, e.g. seconds
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
 
     Returns
     -------
     are_valid : bool
         True if all of the following hold:
-            If input phase parameters are all between 0 and 0.5, inclusive.
-            If input p1 is less than p2.
-            If sigma is not greater than 0.
-        False otherwise.
-    
+            If 0 < `min_period` <= `best_period` <= `max_period`
+            where `(min_period, max_period) = model.optimizer.period_range`
+
     See Also
     --------
-    model_flux_rel
+    ls_model_fluxes_rel
+
+    Notes
+    -----
+    - See `seg_model_fluxes_rel` for description of parameters.
+
+    """
+    (best_period) = params
+    (min_period, max_period) = model.optimizer.period_range
+    if ((0 < min_period) and (min_period <= best_period) and
+        (best_period <= max_period)):
+        are_valid = True
+    else:
+        are_valid = False
+    return are_valid
+
+
+# TODO: speed up with @numba.jit(nopython=True)
+# requires rewriting methods within gatspy.
+def ls_model_fluxes_rel(params, model):
+    r"""Calculate relative fluxes for a Lomb-Scargle model of the light curve.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        `params = (best_period)`
+            best_period :  Period that best represents the time series data.
+        Units are:
+            {best_period} = time, e.g. seconds
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    modeled_fluxes_rel : numpy.ndarray
+        1D array of modeled relative fluxes. Units are relative integrated flux.   
+
+    See Also
+    --------
+    ls_are_valid_params
+
+    Notes
+    -----
+    - Requires that all input parameters are already checked as valid.
+
+    """
+    (best_period) = params
+    modeled_fluxes_rel = model.predict(
+        t=model.t, filts=model.filts, period=best_period)
+    return modeled_fluxes_rel
+
+
+# TODO: speedup with @numba.jit(nopython=True)
+def ls_log_prior(params, model):
+    r"""Log prior of Lomb-Scargle light curve model parameters up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta))
+        if parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    ls_are_valid_params, ls_model_fluxes_rel
+
+    Notes
+    -----
+    - See `ls_model_fluxes_rel` for description of parameters.
+    - This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within constraints.
+        `lnp = -numpy.inf` otherwise.
+
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    
+    """
+    if ls_are_valid_params(params=params, model=model):
+        lnp = 0.0
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+# TODO: speedup with @numba.jit(nopython=True)
+def ls_log_likelihood(params, model):
+    r"""Log likelihood of Lomb-Scargle light curve model's relative flux values
+    given model parameters. Log likelihood is calculated up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of relative flux values: ln(p(y|x, theta))
+        If parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    ls_are_valid_params, ls_model_fluxes_rel
+
+    Notes
+    -----
+    - See `ls_model_fluxes_rel` for description of parameters.
+
+    References
+    ----------
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
+
+    """
+    if ls_are_valid_params(params=params, model=model):
+        modeled_fluxes_rel = ls_model_fluxes_rel(params=params, model=model)
+        # Calculation for `lnp` adapted from [1]_.
+        log_terms = np.log(2.0*np.pi*model.dy**2.0)
+        res_terms = ((model.y - modeled_fluxes_rel) / model.dy)**2.0
+        lnp = -0.5*np.sum(log_terms + res_terms)
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+# TODO: speed up with @numba.jit(nopython=True)
+def ls_log_posterior(params, model):
+    r"""Log probability of Lomb-Scargle light curve model parameters
+    given the data. Log probability is calculated up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+    model : gatspy.periodic.LombScargleMultiband
+        Instance of multiband generalized Lomb-Scargle light curve model
+        from `gatspy`.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta|x, y))
+        If parameters outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    ls_are_valid_params, ls_model_fluxes_rel,
+    ls_log_prior, ls_log_likelihood
+
+    Notes
+    -----
+    - See `ls_model_fluxes_rel` for description of parameters.
+
+    References
+    ----------
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
+
+    """
+    if ls_are_valid_params(params=params, model=model):
+        # Calculation of `lnp` adapted from [1]_.
+        lnpr = ls_log_prior(params=params, model=model)
+        lnlike = ls_log_likelihood(params=params, model=model)
+        lnp = lnpr + lnlike
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+@numba.jit(nopython=True)
+def seg_are_valid_params(params):
+    r"""Check if parameters are valid for segmented, symmetric light curve model.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+        `params = 
+            (phase_rel_int, phase_rel_ext,
+             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
+             flux_sigma)`
+        Units are:
+            {phase_*} = decimal orbital phase
+            {flux_*} = relative flux
+
+    Returns
+    -------
+    are_valid : bool
+        True if all of the following hold:
+            If 0 <= {`phase_rel_int`, `phase_rel_ext`} <= 0.5
+            If `phase_rel_int` < `phase_rel_ext`.
+            If 0 < `flux_sigma`.
+        False otherwise.
+
+    See Also
+    --------
+    seg_model_fluxes_rel
+
+    Notes
+    -----
+    - See `seg_model_fluxes_rel` for description of parameters.
+    - Return bool rather than raise exception for optimization with numba.
 
     """
     # Allow arbitrary flux values for flexibility.
-    # Some models may require flux between minima >~ 1 as a normalization factor
-    # (e.g. Ch 7 of Budding 2007).
+    # Some models may require flux between minima >~ 1 as a normalization
+    # factor (e.g. Ch 7 of Budding 2007).
     (p1, p2, b0, b2, b4, sig) = params
     if ((p1 < p2) and
         (0.0 <= p1 and p1 <= 0.5) and
@@ -680,39 +1102,61 @@ def are_valid_params(params):
     return are_valid
 
 
-@numba.jit
-def model_flux_rel(params, phase):
-    """Model of folded eclipse light curve.
+@numba.jit(nopython=True)
+def seg_model_fluxes_rel(params, phases):
+    r"""Calculate relative fluxes for a segmented, symmetric model of the
+    folded eclipse light curve.
     
     Parameters
     ----------
     params : tuple
         Tuple of floats representing the model parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
+        `params = 
+            (phase_rel_int, phase_rel_ext,
+             flux_pri_eclipse, flux_out_eclipse, flux_sec_eclipse,
+             flux_sigma)`
+            phase_rel_int: Relative phase of internal tangencies
+                (end ingress/begin egress; p1, p4 under 'Notes').
+            phase_rel_ext: Relative phase of external tangencies
+                (begin ingress/end egress; p2, p3 under 'Notes').
+            flux_pri_eclipse: Flux at primary minimum (f0 under 'Notes').
+            flux_out_eclipse: Flux for phases that occur between minima
+                (f2 under 'Notes').
+            flux_sec_eclipse: Flux at secondary minimum (f4 under 'Notes').
+            flux_sigma: Standard deviation of relative fluxes. Assumes that
+                all fluxes are drawn from the same distribution.
         Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
-    phase : float
-        Eclipse phase. 0 <= `phase` <= 0.5.
-        Unit is decimal orbital phase.
+            {phase_*} = decimal orbital phase
+            {flux_*} = relative flux
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+        Unit is decimal orbital phase. 0 <= `phase` <= 0.5.
         
     Returns
     -------
-    flux_rel : float
-        Modeled relative flux. Unit is relative integrated flux.
+    modeled_fluxes_rel : numpy.ndarray
+        1D array of modeled relative fluxes. Units are relative integrated flux.
+
+    See Also
+    --------
+    seg_are_valid_params
     
     Notes
     -----
-    - Trapezoidal model for folded light curve:
+    - Requires that all input parameters are already checked as valid.
+    - Segmented, symmetric eclipse light curve model:
         Durations of primary minimum and secondary minimum are equal.
-        Durations of primary ingress/egress and secondary ingress/egress are equal.
-        Light curve is segmented into functions f(x).
+        Durations of primary ingress/egress and secondary ingress/egress
+        are equal. Light curve is segmented into functions f(x).
         x values are `phase`, p0, p1, ...
+
         light      |  |  |--------|  |  |
         curve:     |  | /|        |\\|__|
                    |__|/ |        |  |  |
         function:  |f0|f1|   f2   |f3|f4|
-        phase:   0.0  p1 p2       p3 p4 0.5
+        phase:     p0 p1 p2       p3 p4 p5
+        
+        boundary condition:       p0     = 0.0
         primary minima:           f0(x)  = b0; 0.0 <= x < p1
         boundary condition:       f0(p1) = f1(p1)
         primary ingress/egress:   f1(x)  = m1*x + b1; p1 <= x < p2
@@ -722,87 +1166,79 @@ def model_flux_rel(params, phase):
         secondary ingress/egress: f3(x)  = m3*x + b3; p3 <= x < p4
         boundary condition:       f3(p4) = f4(p4)
         secondary minima:         f4(x)  = b4; p4 <= x <= 0.5
-        boundary condition:       p4 = 0.5 - p1
-        boundary condition:       p3 = 0.5 - p2
-    - Model parameters are defined relative to primary minima when possible since
+        boundary condition:       p4     = p5 - p1
+        boundary condition:       p3     = p5 - p2
+        boundary condition:       p5     = 0.5
+    - Model parameters are defined relative to primary minima since
         primary minima are deeper and easier to detect from observations.
-    - `sig` is the standard deviation of all measurements of relative flux, which
-        assumes they are all drawn from the same distribution.
-    
-    Raises
-    ------
-    - ValueError: If parameters are not valid (see `are_params_valid`)
-    
-    See Also
-    --------
-    are_params_valid
+    - The out-of-eclipse flux level (f2 above), is left variable as a
+        normalization factor following [1]_.
+
+    References
+    ----------
+    .. [1] Budding, 2007, "Introduction to Astronomical Photometry"
     
     """
-    # Check input.
-    # NOTE: commented out for numba
-    #if not are_valid_params(params=params):
-    #    raise ValueError(
-    #        ("`params` are not valid:\n" +
-    #         "params = {params}").format(params=params))
     # Compute modeled relative flux...
-    (p1, p2, b0, b2, b4, sig) = params
-    p4 = 0.5 - p1
-    p3 = 0.5 - p2
-    # ...for primary minima.
-    if phase < p1:
-        flux_rel = b0
-    # ...for primary ingress/egress.
-    elif p1 <= phase and phase < p2:
-        m1 = (b2 - b0)/(p2 - p1)
-        b1 = b0 - m1*p1
-        flux_rel = m1*phase + b1
-    # ...for between minima.
-    elif p2 <= phase and phase < p3:
-        flux_rel = b2
-    # ...for secondary ingress/egress.
-    elif p3 <= phase and phase < p4:
-        m3 = (b4 - b2)/(p4 - p3)
-        b3 = b2 - m3*p3
-        flux_rel = m3*phase + b3
-    # ...for secondary minima.
-    elif p4 <= phase:
-        flux_rel = b4
-    # NOTE: commented out for numba
-    #else:
-    #    raise AssertionError(
-    #        "Program error. `phase` was not classified as an eclipse event.")
-    return flux_rel
+    (p1, p2, b0, b2, b4, _) = params
+    p5 = 0.5
+    p4 = p5 - p1
+    p3 = p5 - p2
+    num_phases = len(phases)
+    modeled_fluxes_rel = np.empty(num_phases)
+    idx = 0
+    m1 = (b2 - b0)/(p2 - p1)
+    b1 = b0 - m1*p1
+    m3 = (b4 - b2)/(p4 - p3)
+    b3 = b2 - m3*p3
+    while idx < num_phases:
+        phase = phases[idx]
+        # ...for primary minima.
+        if phase < p1:
+            modeled_flux_rel = b0
+        # ...for primary ingress/egress.
+        elif p1 <= phase and phase < p2:
+            modeled_flux_rel = m1*phase + b1
+        # ...for between minima.
+        elif p2 <= phase and phase < p3:
+            modeled_flux_rel = b2
+        # ...for secondary ingress/egress.
+        elif p3 <= phase and phase < p4:
+            modeled_flux_rel = m3*phase + b3
+        # ...for secondary minima.
+        elif p4 <= phase:
+            modeled_flux_rel = b4
+        modeled_fluxes_rel[idx] = modeled_flux_rel
+        idx += 1
+    return modeled_fluxes_rel
 
 
-def log_prior(params):
-    """Log prior of light curve model parameters up to a constant.
-    Light curve is folded so that phase is from 0 to 0.5
-    
+@numba.jit(nopython=True)
+def seg_log_prior(params):
+    r"""Log prior of segmented, symmetric light curve model parameters up to a
+    constant. Light curve is folded so that phase is from 0 to 0.5
+
     Parameters
     ----------
     params : tuple
-        Tuple of floats representing the model parameters.
-        `params = (p1, p2, b0, b2, b4, sig)`.
-        Units are:
-        {p1, p2} = decimal orbital phase
-        {b0, b2, b4, sig} = relative flux
+        Tuple of floats as the model parameters.
     
     Returns
     -------
     lnp : float
         Log probability of parameters: ln(p(theta))
-        If parameters are outside of acceptible range, `-numpy.inf`.
-    
-    Notes
-    -----
-    - See `model_flux_rel` for description of parameters.
-    - This is an uninformative prior:
-        `lnp = 0.0` if `theta` is within above constraints.
-        `lnp = -numpy.inf` otherwise.
+        If parameters are outside of acceptable range, `-numpy.inf`.
     
     See Also
     --------
-    model_flux_rel
+    seg_are_valid_params, seg_model_fluxes_rel
+
+    Notes
+    -----
+    - See `seg_model_fluxes_rel` for description of parameters.
+    - This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within constraints.
+        `lnp = -numpy.inf` otherwise.
     
     References
     ----------
@@ -811,96 +1247,115 @@ def log_prior(params):
     ..[3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if are_valid_params(params=params):
+    if seg_are_valid_params(params=params):
         lnp = 0.0
     else:
         lnp = -np.inf
     return lnp
 
 
-def log_likelihood(params, phase, flux_rel):
-    """Log likelihood of light curve relative flux values given
-    phase values and light curve model parameters. Log likelihood
-    is computed up to a constant.
+@numba.jit(nopython=True)
+def seg_log_likelihood(params, phases, fluxes_rel):
+    r"""Log likelihood of segmented, symmetric light curve model's relative flux
+    values given phase values and model parameters. Log likelihood is calculated
+    up to a constant.
 
     Parameters
     ----------
     params : tuple
-        Tuple of floats representing the model parameters, the last
+        Tuple of floats as the model parameters, the last
         of which is the standard deviation of all measurements
-        of relative flux `params = (..., sig)`. Unit is relative flux.
-        This assumes that all measurements are drawn from the same
-        distribution.
-    phase : float
-        Eclipse phase. Unit is decimal orbital phase.
-    flux_rel : float
-        Light level at `phase`. Unit is relative integrated flux.
+        of relative flux `params = (..., flux_sigma)`.
+        Unit is relative flux. This assumes that all measurements are
+        drawn from the same distribution.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+    fluxes_rel : numpy.ndarray
+        1D array of observed fluxes. Unit is relative integrated flux.
+        Required: `len(fluxes_rel) == len(phases)`
         
     Returns
     -------
     lnp : float
         Log probability of relative flux values: ln(p(y|x, theta))
-        If parameters outside of acceptible range, `-numpy.inf`.
+        If parameters outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    seg_are_valid_params, seg_model_fluxes_rel
     
     Notes
     -----
-    - See `model_flux_rel` for description of parameters.
+    - See `seg_model_fluxes_rel` for description of parameters.
 
     References
     ----------
-    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
-    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
-    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if are_valid_params(params=params):
-        sig = params[-1]
-        modeled_flux_rel = \
-            map(lambda phs: model_flux_rel(phase=phs, params=params),
-                phase)
-        lnp = -0.5 * np.sum(np.log(2*np.pi*sig**2) +
-                            ((flux_rel - modeled_flux_rel)**2 / sig**2))
+    if seg_are_valid_params(params=params):
+        # numba does not support negative indexing `params[-1]`
+        sig = params[len(params)-1]
+        modeled_fluxes_rel = seg_model_fluxes_rel(params=params, phases=phases)
+        # Calculation for `lnp` adapted from [1]_.
+        # All data are presumed to have the same sigma.
+        log_term = np.log(2.0*np.pi*sig**2.0)
+        idx = 0
+        lnp = 0.0
+        while idx < len(fluxes_rel):
+            res = fluxes_rel[idx] - modeled_fluxes_rel[idx]
+            res_term = (res / sig)**2.0
+            lnp += -0.5*(log_term + res_term)
+            idx += 1
     else:
         lnp = -np.inf
     return lnp
 
 
-def log_posterior(params, phase, flux_rel):
-    """Log probability of light curve model parameters
-    given the data. Log probability is computed
-    up to a constant.
+@numba.jit(nopython=True)
+def seg_log_posterior(params, phases, fluxes_rel):
+    r"""Log probability of segmented, symmetric light curve model parameters
+    given the data. Log probability is calculated up to a constant.
     
     Parameters
     ----------
     params : tuple
-        Tuple of floats representing the model parameters.
-    phase : float
-        Eclipse phase. Unit is decimal orbital phase.
-    flux_rel : float
-        Light level at `phase`. Unit is relative integrated flux.
+        Tuple of floats as the model parameters.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+    fluxes_rel : numpy.ndarray
+        1D array of observed fluxes. Unit is relative integrated flux.
+        Required: `len(fluxes_rel) == len(phases)`
         
     Returns
     -------
     lnp : float
-        Log probability of parameters: ln(p(theta|x,y))
-        If parameters outside of acceptible range, `-numpy.inf`.
+        Log probability of parameters: ln(p(theta|x, y))
+        If parameters outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    seg_are_valid_params, seg_model_fluxes_rel,
+    seg_log_prior, seg_log_likelihood
 
     Notes
     -----
-    - See `model_flux_rel` for description of parameters.
+    - See `seg_model_fluxes_rel` for description of parameters.
 
     References
     ----------
-    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
-    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
-    ..[3] http://dan.iel.fm/emcee/current/user/line/
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    if are_valid_params(params=params):
-        lnpr = log_prior(params=params)
-        lnlike = log_likelihood(phase=phase,
-                                flux_rel=flux_rel,
-                                params=params)
+    if seg_are_valid_params(params=params):
+        # Calculation of `lnp` adapted from [1]_.
+        lnpr = seg_log_prior(params=params)
+        lnlike = seg_log_likelihood(
+            params=params, phases=phases, fluxes_rel=fluxes_rel)
         lnp = lnpr + lnlike
     else:
         lnp = -np.inf
@@ -1046,7 +1501,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
         
     See Also
     --------
-    model_flux_rel, model_quantities_from_lc_velr_stellar
+    seg_model_fluxes_rel, model_quantities_from_lc_velr_stellar
 
     Notes
     -----
@@ -1162,7 +1617,7 @@ def model_quantities_from_lc_velr_stellar(
 
     See Also
     --------
-    model_geometry_from_light_curve, model_flux_rel
+    model_geometry_from_light_curve, seg_model_fluxes_rel
 
     Notes
     -----

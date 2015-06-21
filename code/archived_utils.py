@@ -370,165 +370,6 @@ def calc_best_period(
     return best_period
 
 
-def calc_num_terms(
-    times, fluxes, fluxes_err, best_period, max_n_terms=20,
-    show_periodograms=False, show_summary_plots=True, period_unit='seconds',
-    flux_unit='relative'):
-    r"""Calculate the number of Fourier terms that best represent the data's
-    underlying variability for representation by a multi-term generalized
-    Lomb-Scargle periodogram. Convenience function for methods from [1]_.
-       
-    Parameters
-    ----------
-    times : numpy.ndarray
-        1D array of time coordinates for data. Unit is time,
-        e.g. seconds or days.
-    fluxes : numpy.ndarray
-        1D array of fluxes. Unit is integrated flux,
-        e.g. relative flux or magnitudes.
-    fluxes_err : numpy.ndarray
-        1D array of errors for fluxes. Unit is same as `fluxes`.
-    best_period : float
-        Period that best represents the data. Unit is same as `times`.
-    max_n_terms : {20}, int, optional
-        Maximum number of terms to attempt fitting.
-        Example: From 10.3.3 of [1]_, many light curves of eclipses are well
-        represented with ~6 terms and are best fit with ~10 terms.
-    show_periodograms : {False, True}, bool, optional
-        If `False` (default), do not display periodograms (power vs period)
-        for each candidate number of terms.
-    show_summary_plots : {True, False}, bool, optional
-        If `True` (default), display summary plots of delta BIC vs number of
-        terms, periodogram and phased light curve for best fit number of terms.
-    period_unit : {'seconds'}, string, optional
-    flux_unit : {'relative'}, string, optional
-        Strings describing period and flux units for labeling the plots.
-        Example: period_unit='seconds', flux_unit='relative' will label the
-        x-axis with "Period (seconds)" and label the y-axis with
-        "Lomb-Scargle Power Spectral Density\n" +
-        "(from flux in relative, ang. freq. in 2*pi/seconds)".
-    
-    Returns
-    -------
-    best_n_terms : int
-        Number of Fourier terms that best fit the light curve. The number of
-        terms is determined by the maximum relative
-        Bayesian Information Criterion, from section 10.3.3 of [1]_.
-    phases : ndarray
-        The phase coordinates of the best-fit light curve.
-        Unit is decimal orbital phase.
-    fits_phased : ndarray
-        The relative fluxes for the `phases` of the best-fit light curve.
-        Unit is same as `fluxes`.
-    times_phased : ndarray
-        The phases of the corresponding input `times`.
-        Unit is decimal orbital phase.
-
-    See Also
-    --------
-    calc_best_period, refine_best_period
-
-    Notes
-    -----
-    -  Range around the best period is based on the angular frequency
-       resolution of the original data. Adopted from [2]_.
-       acquisition_time = max(times) - min(times)
-       omega_resolution = 2.0 * np.pi / acquisition_time
-       num_omegas = 1000 # chosen to balance fast computation with medium range
-       anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-       # ensure sampling precision is higher than data precision
-       sampling_precision = 0.1 
-       range_omega_halfwidth = \
-           ((num_omegas/2.0) * omega_resolution * anti_aliasing *
-            sampling_precision)
-    - Call after `calc_best_period`.
-    - Call before `refine_best_period`.
-
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    
-    """
-    # TODO: separate as own function.
-    # Calculate the multiterm periodograms and choose the best number of
-    # terms from the maximum relative BIC.
-    acquisition_time = max(times) - min(times)
-    omega_resolution = 2.0 * np.pi / acquisition_time
-    num_omegas = 1000 # chosen to balance fast computation with medium range
-    anti_aliasing = 1.0 / 2.56 # remove digital aliasing
-    # ensure sampling precision is higher than data precisionR
-    sampling_precision = 0.1 
-    range_omega_halfwidth = \
-        ((num_omegas/2.0) * omega_resolution * anti_aliasing *
-         sampling_precision)
-    max_period = 0.5 * acquisition_time
-    min_omega = 2.0 * np.pi / max_period
-    median_sampling_period = np.median(np.diff(times))
-    min_period = 2.0 * median_sampling_period
-    max_omega = 2.0 * np.pi / (min_period)
-    best_omega = 2.0 * np.pi / best_period
-    range_omegas = \
-        np.clip(
-            np.linspace(
-                start=best_omega - range_omega_halfwidth,
-                stop=best_omega + range_omega_halfwidth,
-                num=num_omegas, endpoint=True),
-            min_omega, max_omega)
-    range_periods = 2.0 * np.pi / range_omegas
-    nterms_bics = []
-    for n_terms in range(1, max_n_terms+1):
-        range_powers = \
-            astroML_ts.multiterm_periodogram(
-                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
-                n_terms=n_terms)
-        range_bic_max = \
-            max(astroML_ts.lomb_scargle_BIC(
-                P=range_powers, y=fluxes, dy=fluxes_err, n_harmonics=n_terms))
-        nterms_bics.append((n_terms, range_bic_max))
-        if show_periodograms:
-            print(80*'-')
-            plot_periodogram(
-                periods=range_periods, powers=range_powers, xscale='linear',
-                n_terms=n_terms, period_unit=period_unit, flux_unit=flux_unit,
-                return_ax=False)
-            print("Number of Fourier terms: {num}".format(num=n_terms))
-            print("Relative Bayesian Information Criterion: {bic}".format(
-                bic=range_bic_max))
-    # Choose the best number of Fourier terms from the maximum delta BIC.
-    best_idx = np.argmax(zip(*nterms_bics)[1])
-    (best_n_terms, best_bic) = nterms_bics[best_idx]
-    mtf = astroML_ts.MultiTermFit(omega=best_omega, n_terms=best_n_terms)
-    mtf.fit(t=times, y=fluxes, dy=fluxes_err)
-    (phases, fits_phased, times_phased) = \
-        mtf.predict(Nphase=1000, return_phased_times=True, adjust_offset=True)
-    if show_summary_plots:
-        # Plot delta BICs after all terms have been fit.
-        print(80*'-')
-        nterms_bics_t = zip(*nterms_bics)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(nterms_bics_t[0], nterms_bics_t[1], color='black', marker='o')
-        ax.set_xlim(min(nterms_bics_t[0]), max(nterms_bics_t[0]))
-        ax.set_title("Relative Bayesian Information Criterion vs\n" +
-                     "number of Fourier terms")
-        ax.set_xlabel("number of Fourier terms")
-        ax.set_ylabel("delta BIC")
-        plt.show()
-        range_powers = \
-            astroML_ts.multiterm_periodogram(
-                t=times, y=fluxes, dy=fluxes_err, omega=range_omegas,
-                n_terms=best_n_terms)
-        plot_periodogram(
-            periods=range_periods, powers=range_powers, xscale='linear',
-            n_terms=best_n_terms, period_unit=period_unit,
-            flux_unit=flux_unit, return_ax=False)
-        print("Best number of Fourier terms: {num}".format(num=best_n_terms))
-        print("Relative Bayesian Information Criterion: {bic}".format(
-            bic=best_bic))
-    return (best_n_terms, phases, fits_phased, times_phased)
-
-
 def refine_best_period(
     times, fluxes, fluxes_err, best_period, n_terms=6, show_plots=True,
     period_unit='seconds', flux_unit='relative'):
@@ -652,50 +493,6 @@ def refine_best_period(
             flux_unit=flux_unit, return_ax=False)
         print("Refined period: {per} seconds".format(per=refined_period))
     return (refined_period, phases, fits_phased, times_phased, mtf)
-
-
-def calc_z1_z2(
-    dist):
-    r"""Calculate a rank-based measure of Gaussianity in the core
-    and tail of a distribution.
-    
-    Parameters
-    ----------
-    dist : array_like
-        Distribution to evaluate. 1D array of `float`.
-    
-    Returns
-    -------
-    z1 : float
-    z2 : float
-        Departure of distribution core (z1) or tails (z2) from that of a
-        Gaussian distribution in number of sigma.
-        
-    Notes
-    -----
-    - From section 4.7.4 of [1]_:
-        z1 = 1.3 * (abs(mu - median) / sigma) * sqrt(num_dist)
-        z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * sqrt(num_dist)
-        where mu = mean(residuals), median = median(residuals),
-        sigma = standard_deviation(residuals), num_dist = len(dist)
-        sigmaG = sigmaG(dist) = rank_based_standard_deviation(dist) (from [1]_)
-    - Interpretation:
-        For z1 = 1.0, the probability of a true Gaussian distribution also with
-        z1 > 1.0 is ~32% and is equivalent to a two-tailed p-value |z1| > 1.0.
-        The same is true for z2.
-    
-    References
-    ----------
-    .. [1] Ivezic et al, 2014,
-           "Statistics, Data Mining, and Machine Learning in Astronomy"
-    
-    """
-    (mu, sigma) = astroML_stats.mean_sigma(dist)
-    (median, sigmaG) = astroML_stats.median_sigmaG(dist)
-    num_dist = len(dist)
-    z1 = 1.3 * (abs(mu - median) / sigma) * np.sqrt(num_dist)
-    z2 = 1.1 * abs((sigma / sigmaG) - 1.0) * np.sqrt(num_dist)
-    return (z1, z2)
 
 
 def plot_phased_histogram(
@@ -916,3 +713,29 @@ def calc_phased_histogram(
             flux_unit=flux_unit, return_ax=False)
     return (hist_phases, hist_fluxes, hist_fluxes_err)
 
+
+
+@numba.jit(nopython=True)
+def calc_ymeans(hash_filts, hash_unique_filts, ymean_by_filt):
+    r"""For speeding up 
+    gatspy.periodic.lomb_scargle_multiband.LombScargleMultiband
+
+    call with hash_filts = numpy.asarray(map(hash, filts))
+
+    """
+    idx_filt = 0
+    num_filts = len(hash_filts)
+    num_uniqs = len(hash_unique_filts)
+    ymeans = np.empty(num_filts)
+    while idx_filt < num_filts:
+        filt = hash_filts[idx_filt]
+        idx_uniq = 0
+        while idx_uniq < num_uniqs:
+            uniq_filt = hash_unique_filts[idx_uniq]
+            if uniq_filt == filt:
+                ymean = ymean_by_filt[idx_uniq]
+                ymeans[idx_filt] = ymean
+                break
+            idx_uniq += 1
+        idx_filt += 1
+    return ymeans
