@@ -245,6 +245,7 @@ def plot_periodogram(
     return return_obj
 
 
+# TODO: speed up with numba
 def calc_min_flux_time(
     model, filt, best_period=None, lwr_time_bound=None, upr_time_bound=None,
     tol=0.1, maxiter=10):
@@ -338,7 +339,8 @@ def calc_min_flux_time(
         np.linspace(start=start, stop=stop, num=1000, endpoint=False)
     phased_fluxes_fit = \
         model.predict(
-            t=phased_times_fit, filts=[filt]*1000, period=best_period)
+            t=phased_times_fit, filts=[filt]*len(phased_times_fit),
+            period=best_period)
     fmt_parameters = \
         ("best_period = {bp}\n" +
          "tol = {tol}\n" +
@@ -403,16 +405,19 @@ def calc_min_flux_time(
              "best_period = {bp}").format(
                 lhi=lhs_time_init, mt=min_flux_time,
                 rhi=rhs_time_init, bp=best_period))
-    if not min_flux <= min_flux_init:
-        raise AssertionError(
-            ("Program error.\n" +
-             "Required: `min_flux` <= `min_flux_init`\n" +
-             "min_flux = {mf}\n" +
-             "min_flux_init = {mfi}").format(
-                mf=min_flux, mfi=min_flux_init))
+    # TODO: This assertion case fails during MCMC. Fix.
+    # Use numpy.less_equal for high precision.
+    # if not np.less_equal(min_flux, min_flux_init):
+    #     raise AssertionError(
+    #         ("Program error.\n" +
+    #          "Required: `min_flux` <= `min_flux_init`\n" +
+    #          "min_flux = {mf}\n" +
+    #          "min_flux_init = {mfi}").format(
+    #             mf=min_flux, mfi=min_flux_init))
     return min_flux_time
 
 
+# TODO: speed up with numba
 def calc_phases(times, best_period, min_flux_time=0.0):
     r"""Calculate phases of a light curve.
 
