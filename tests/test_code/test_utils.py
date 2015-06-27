@@ -27,6 +27,14 @@ import numpy as np
 import code
 
 
+# TODO: test_flux_ADU_to_electrons
+# TODO: test_flux_intg_to_rate
+# TODO: test_flux_rate_to_magC
+# TODO: test_extinct_airmass
+# TODO: test_composite_flux
+# TODO: test_try_color_to_Teff
+
+
 def test_calc_period_limits(
     times=xrange(10), ref_min_period=2.0, ref_max_period=4.5,
     ref_num_periods=23):
@@ -171,6 +179,9 @@ def test_calc_min_flux_time_cases():
             tol=1e-5, maxiter=10)
     # TODO: insert additional test cases here.
     return None
+
+
+# TODO: test_calc_min_flux_time_opt_cases
 
 
 def test_calc_phases(

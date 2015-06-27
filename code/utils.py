@@ -28,6 +28,156 @@ import seaborn as sns
 sns.set() # Set matplotlib styles by seaborn.
 
 
+# TODO: rename to use lower case
+def flux_ADU_to_electrons(flux_ADU, gain_eADU):
+    """Convert flux from ADU to electrons using CCD gain.
+    
+    Parameters
+    ----------
+    flux_ADU : float
+        Flux count in ADU.
+    gain_eADU : float
+        Conversion gain of CCD in electons/ADU.
+    
+    Returns
+    -------
+    flux_electrons : float
+        Flux count in electrons.
+    
+    Notes
+    -----
+    TODO: Use gain correction methods from tsphot and ccdproc.
+    """
+    return flux_ADU * gain_eADU
+
+
+def flux_intg_to_rate(flux_intg, exptime):
+    """Divide integrated flux by exposure time to get flux rate.
+      
+    Parameters
+    ----------
+    flux_intg : float
+        Integrated flux of star over exposure time and area on detector (e.g. ADU)
+    exptime : float
+        Exposure time over which flux was integrated (e.g. seconds)
+    
+    Returns
+    -------
+    flux_rate : float
+        flux_rate = flux_intg / exptime
+    """
+    return flux_intg / exptime
+
+
+def flux_rate_to_magC(flux_rate):
+    """Compute magnitude omitting a correction constant C from a flux rate.
+      
+    Parameters
+    ----------
+    flux_rate : float
+        Flux rate of star in electrons/second
+    
+    Returns
+    -------
+    magC_dex : float
+        magC_dex = -2.5*log_10(flux_rate)
+        
+    Notes
+    -----
+    From sec 5.1.3 of [1]_:
+    Definition: mag = -2.5*log_10(flux) + C
+    C is correction constant, 23.5-26 for Earth-based sites.
+    C is omitted from the returned result.
+        
+    References
+    ----------
+    .. [1] Howell, 2009, "Handbook of CCD Astronomy"
+    """
+    return -2.5*np.log10(flux_rate)
+
+
+def extinct_airmass(airmass):
+    """Compute atmospheric extinction factor due to airmass.
+      
+    Parameters
+    ----------
+    airmass : float
+        Number of atmospheres through which observation is being made.
+        Example: 1.15
+    
+    Returns
+    -------
+    extinct : float
+        Extinction factor omitting extinction coefficient k.
+        extinct = 2.5*np.log10(np.exp(1.0))*airmass
+        
+    Notes
+    -----
+    From eqns 4.3 and 4.4 of [1]_ and with sec 5.1.3 of [2]_::
+    flux_obs = flux_ref*exp(−k_obs*X_obs)
+    m_obs = m_ref + 2.5*log10(exp)*k_obs*X_obs + C_obs
+    k = extinction coefficient as a function of wavelength
+    X = airmass
+        
+    References
+    ----------
+    .. [1] Budding, 2007, "Introduction to Astronomical Photometry"
+    .. [2] Howell, 2009, "Handbook of CCD Astronomy"
+    """
+    return 2.5*np.log10(np.exp(1.0))*airmass
+
+
+def composite_flux(flux_ADU, gain_eADU, exptime):
+    """Composite function for flux. Convenience function.
+    
+    Parameters
+    ----------
+    flux_ADU : float
+    gain_eADU : float
+    exptime : float
+    
+    Returns
+    -------
+    magC_dex : float
+    """
+    # TODO: restructure as lambda functions.
+    return \
+        flux_rate_to_magC(flux_rate=
+            flux_intg_to_rate(flux_intg=
+                flux_ADU_to_electrons(flux_ADU=flux_ADU,
+                                      gain_eADU=gain_eADU),
+                exptime=exptime))
+
+
+def try_color_to_Teff(color, colorbands='g-r'):
+    """Fault-tolerant wrapper for `astropysics.photometry.color_to_Teff`
+    
+    Passes `ValueError`.
+    
+    Parameters
+    ----------
+    color : float
+    colorbands : {'g-r'}, string, optional
+    
+    Returns
+    -------
+    Teff : float
+        Effective temperature of star in Kelvin.
+    """
+    try:
+        Teff = apy_phot.color_to_Teff(color, colorbands=colorbands)
+    except ValueError as err:
+        print(("WARNING: astropysics.photometry.color_to_Teff raised ValueError.\n" +
+               "Message:\n" +
+               err.message + "\n" +
+               "Arguments:\n" +
+               "color = {color}\n" +
+               "colorbands = {colorbands}").format(color=color, colorbands=colorbands),
+              file=sys.stderr)
+        Teff = np.NaN
+    return Teff
+
+
 def calc_period_limits(times):
     r"""Calculate the region of dectable periods.
     
@@ -1078,9 +1228,9 @@ def seg_are_valid_params(params):
     -------
     are_valid : bool
         True if all of the following hold:
-            If 0 <= {`phase_rel_int`, `phase_rel_ext`} <= 0.5
-            If `phase_rel_int` < `phase_rel_ext`.
-            If 0 < `flux_sigma`.
+            If 0 < `phase_rel_int` < `phase_rel_ext` < 0.5
+            If `flux_pri_eclipse` < `flux_sec_eclipse` < `flux_out_eclipse`
+            If 0 < `flux_sigma`
         False otherwise.
 
     See Also
@@ -1097,9 +1247,8 @@ def seg_are_valid_params(params):
     # Some models may require flux between minima >~ 1 as a normalization
     # factor (e.g. Ch 7 of Budding 2007).
     (p1, p2, b0, b2, b4, sig) = params
-    if ((p1 < p2) and
-        (0.0 <= p1 and p1 <= 0.5) and
-        (0.0 <= p2 and p2 <= 0.5) and
+    if ((0.0 < p1 and p1 < p2 and p2 < 0.5) and
+        (b0 < b4 and b4 < b2) and
         (sig > 0)):
         are_valid = True
     else:
@@ -1465,6 +1614,7 @@ def has_nans(obj):
     return found_nan
 
 
+# TODO: speed up with numba
 def model_geometry_from_light_curve(params, show_plots=False):
     """Calculate geometric parameters of a spherical binary
     model from light curve parameters.
@@ -1474,14 +1624,13 @@ def model_geometry_from_light_curve(params, show_plots=False):
     params : tuple
         Tuple of floats representing the model light curve parameters.
         `params = \
-            (phase_orb_int, phase_orb_ext,
-             light_oc, light_ref, light_tr, sig)`.
+            (phase_orb_int, phase_orb_ext, light_oc, light_ref, light_tr)`.
         Units are:
-        {phase_orb_int/ext} = phase of external/internal
+        {phase_orb_*} = phase of external/internal
             events (tangencies) in radians
             int: internal tangencies, end/begin ingress/egress
             ext: external tangencies, begin/end ingress/egress
-        {light_oc/ref/tr, sig} = relative flux
+        {light_*} = relative flux
             oc:  occulatation event
             ref: between-eclipse reference light level
             tr:  transit event
@@ -1521,7 +1670,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
     """
     # TODO: Check input.
     (phase_orb_int, phase_orb_ext,
-     light_oc, light_ref, light_tr, sig) = params
+     light_oc, light_ref, light_tr) = params
     (flux_intg_rel_s, flux_intg_rel_g) = \
         bss.utils.calc_fluxes_intg_rel_from_light(
             light_oc=light_oc, light_ref=light_ref)
