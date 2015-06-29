@@ -27,12 +27,14 @@ import numpy as np
 import code
 
 
+# TODO: test_Container
 # TODO: test_flux_ADU_to_electrons
 # TODO: test_flux_intg_to_rate
 # TODO: test_flux_rate_to_magC
 # TODO: test_extinct_airmass
 # TODO: test_composite_flux
 # TODO: test_try_color_to_Teff
+# TODO: test_rolling_window
 
 
 def test_calc_period_limits(

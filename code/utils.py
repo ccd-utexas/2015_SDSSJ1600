@@ -28,6 +28,22 @@ import seaborn as sns
 sns.set() # Set matplotlib styles by seaborn.
 
 
+class Container(object):
+    """Empty class to contain dynamically allocated attributes.
+    Use to minimize namespace clutter from variable names.
+    Use for heirarchical data storage like a `dict`.
+    
+    Examples
+    --------
+    ```
+    model = Container()
+    model.fit = Container()
+    model.fit.values = fits
+    ```
+    """
+    pass
+
+
 # TODO: rename to use lower case
 def flux_ADU_to_electrons(flux_ADU, gain_eADU):
     """Convert flux from ADU to electrons using CCD gain.
@@ -178,6 +194,37 @@ def try_color_to_Teff(color, colorbands='g-r'):
     return Teff
 
 
+def rolling_window(arr, window):
+    r"""Efficient rolling window for statistics.
+    From [1]_.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+    window : int
+        Number of elements in window.
+
+    Returns
+    -------
+    arr_windowed : numpy.ndarray
+        `arr` where each element has been replaced by a `numpy.ndarray`
+        of length `window`, centered on the element. Edge elements are dropped.
+
+    Notes
+    -----
+    * For examples, see [1]_, [2]_.
+
+    References
+    ----------
+    .. [1] http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html
+    .. [2] http://stackoverflow.com/questions/6811183/
+           rolling-window-for-1d-arrays-in-numpy
+    """
+    shape = arr.shape[:-1] + (arr.shape[-1] - window + 1, window)
+    strides = arr.strides + (arr.strides[-1],)
+    return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
+
+
 def calc_period_limits(times):
     r"""Calculate the region of dectable periods.
     
@@ -219,7 +266,11 @@ def calc_period_limits(times):
            svtconcepts/fft_funda/
     
     """
-    med_sampling_period = np.median(np.diff(times))
+    # Account for unsorted, input with duplicate data.
+    times = np.sort(times)
+    diffs = np.diff(times)
+    diffs_nonzero = diffs[diffs > 0]
+    med_sampling_period = np.median(diffs_nonzero)
     acquisition_duration = max(times) - min(times)
     min_period = 2.0 * med_sampling_period
     max_period = 0.5 * acquisition_duration
@@ -230,7 +281,7 @@ def calc_period_limits(times):
 
 
 def calc_sig_levels(
-    model, sigs=(95.0, 99.0, 99.9), num_periods=20, num_shuffles=1000):
+    model, sig_periods, sigs=(95.0, 99.0, 99.9), num_shuffles=1000):
     r"""Calculate relative powers that correspond to significance levels for
     a multiband generalized Lomb-Scargle periodogram. The noise is modeled by
     shuffling the time series. Convenience function for methods from [1]_, [2]_.
@@ -240,11 +291,12 @@ def calc_sig_levels(
     model : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
+    sig_periods : numpy.ndarray
+        Periods at which significance levels are to be computed.
+        Units are time, same as `model.t`. The significance level changes
+        slowly as a function of period.
     sigs : {(95.0, 99.0, 99.9)}, tuple, optional
         `tuple` of `float` that are the levels of statistical significance.
-    num_periods : {20}, int, optional
-        Number of periods at which to compute significance levels.
-        The significance level changes slowly as a function of period.
     num_shuffles : {1000}, int, optional
         Number of shuffles used to compute significance levels.
         For 1000 shuffles, the significance level can be computed to a max
@@ -252,9 +304,6 @@ def calc_sig_levels(
 
     Returns
     -------
-    sig_periods : numpy.ndarray
-        Periods at which significance levels were computed.
-        Units are time, same as `model.t`
     sig_powers : dict
         `dict` of `numpy.ndarray`. Keys are `sigs`. Values are relative powers
         for each significance level as a `numpy.ndarray`. Units are relative
@@ -271,7 +320,6 @@ def calc_sig_levels(
     - For a given period, a power is "signficant to the 99th percentile" if
         that power is greater than 99% of all other powers due to noise at that
         period. The noise is modeled by shuffling the time series.
-    - Period space is sampled linearly in angular frequency.
     - The time complexity for computing noise levels is approximately linear
         with `num_periods`*`num_shuffles`:
         exec_time ~ 13.6 sec * (num_periods/20) * (num_shuffles/1000)
@@ -284,18 +332,8 @@ def calc_sig_levels(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
 
     """
-    # Check input.
-    # Period space is sampled linearly in angular frequency.
-    noise_model = copy.deepcopy(model)
-    (min_period, max_period) = noise_model.optimizer.period_range
-    min_omega = 2.0*np.pi / max_period
-    max_omega = 2.0*np.pi / min_period
-    num_omegas = num_periods
-    sig_omegas = \
-        np.linspace(
-            start=min_omega, stop=max_omega, num=num_omegas, endpoint=True)
-    sig_periods = 2.0*np.pi / sig_omegas
     # Calculate percentiles of powers from noise.
+    noise_model = copy.deepcopy(model)
     np.random.seed(seed=0) # for reproducibility
     sig_powers_arr = []
     for _ in xrange(num_shuffles):
@@ -303,7 +341,7 @@ def calc_sig_levels(
         sig_powers_arr.append(noise_model.periodogram(periods=sig_periods))
     sig_powers = \
         {sig: np.percentile(a=sig_powers_arr, q=sig, axis=0) for sig in sigs}
-    return (sig_periods, sig_powers)
+    return sig_powers
 
 
 def plot_periodogram(
@@ -847,8 +885,9 @@ def calc_z1_z2(
 
 
 def calc_nterms_base(
-    model, max_nterms_base=20, show_summary_plots=True, 
-    show_periodograms=False, period_unit='seconds', flux_unit='relative'):
+    model, zoom_periods, nterms_base_list=range(1, 20),
+    show_summary_plots=True,  show_periodograms=False,
+    period_unit='seconds', flux_unit='relative'):
     r"""Calculate the number of Fourier terms that best represent a `gatspy`
     base model of the data's variability. The model is a multi-band, multi-term
     generalized Lomb-Scargle periodogram. Convenience function for methods
@@ -859,9 +898,13 @@ def calc_nterms_base(
     model : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
-    max_nterms_base : {20}, int, optional
-        Maximum number of Fourier terms to attempt fitting for `gatspy`
-        base model.
+    zoom_perdiods : numpy.ndarray
+        Zoomed period space around best period for computing the powers to
+        evaluate the `model`. Ensure that period space is sampled at much
+        greater resolution than the data.
+    nterms_base_list : range(1, 20), iterable, optional
+        Iterable (e.g. `list`) over number of Fourier terms to attempt fitting
+        for `gatspy` base model.
     show_periodograms : {False, True}, bool, optional
         If `False` (default), do not display periodograms (power vs period)
         for each candidate number of base terms. Used for debugging.
@@ -908,32 +951,17 @@ def calc_nterms_base(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
+    # Check input.
+    zoom_periods = sorted(zoom_periods)
+    nterms_base_list = sorted(nterms_base_list)
     # Recursive copy input models to avoid altering.
     model_init  = copy.deepcopy(model)
-    # Define zoomed period space around best period for computing the powers.
-    # Ensure that period space is sampled at much greater resolution than the
-    # data. Period space is sampled linearly in the zoomed periodogram.
-    (min_period, max_period, num_periods) = \
-        calc_period_limits(times=model_init.t)
-    delta_period = (max_period - min_period) / num_periods
-    zoom_num_periods = 1000
-    oversample_factor = 0.002
-    zoom_period_halfwidth =  \
-        (zoom_num_periods/2.0) * delta_period * oversample_factor
-    zoom_min_period = model_init.best_period - zoom_period_halfwidth
-    zoom_max_period = model_init.best_period + zoom_period_halfwidth
-    zoom_periods = \
-        np.clip(
-            np.linspace(
-                start=zoom_min_period, stop=zoom_max_period,
-                num=zoom_num_periods, endpoint=True),
-            min_period, max_period)
     # Compute Bayesian Information Criterion values for
     # Nterms_band <= nterms_base <= max_nterms_base.
     # NOTE: model_test.Nterms_band should always == model_init.Nterms_band,
-    # i.e. only model_test.Nterms_base ever changes.
+    #     i.e. only model_test.Nterms_base ever changes.
     nterms_base_bics = []
-    for nterms_base in xrange(model_init.Nterms_band, max_nterms_base+1):
+    for nterms_base in nterms_base_list:
         model_test = copy.deepcopy(model_init)
         model_test.Nterms_base = nterms_base
         # Refit the model to the data with the updated nterms_base
@@ -941,24 +969,25 @@ def calc_nterms_base(
             t=model_test.t, y=model_test.y,
             dy=model_test.dy, filts=model_test.filts)
         zoom_powers = model_test.periodogram(periods=zoom_periods)
-        rel_bic = \
-            max(
-                astroML_ts.lomb_scargle_BIC(
-                    P=zoom_powers, y=model_test.y, dy=model_test.dy,
-                    n_harmonics=model_test.Nterms_base+model_test.Nterms_band))
+        rel_bic = max(
+            astroML_ts.lomb_scargle_BIC(
+                P=zoom_powers, y=model_test.y, dy=model_test.dy,
+                n_harmonics=model_test.Nterms_base+model_test.Nterms_band))
         nterms_base_bics.append((nterms_base, rel_bic))
         if show_periodograms:
+            print()
             print(80*'-')
+            print("Number of Fourier terms for base model: {num}".format(
+                num=model_test.Nterms_base))
             plot_periodogram(
                 periods=zoom_periods, powers=zoom_powers, xscale='linear',
                 period_unit='seconds', flux_unit='relative', return_ax=False)
-            print("Number of Fourier terms for base model: {num}".format(
-                num=model_test.Nterms_base))
             print("Bayesian Information Criterion: {bic}".format(
                 bic=rel_bic))
         assert model_init.Nterms_band == model_test.Nterms_band
     # Choose the best number of Fourier terms from the maximum delta BIC.
-    # Create optimized model and recompute best period.
+    # Create optimized model and recompute best period using
+    # intial `period_range`.
     best_idx = np.argmax(zip(*nterms_base_bics)[1])
     (best_nterms_base, best_bic) = nterms_base_bics[best_idx]
     model_best = \
@@ -967,11 +996,9 @@ def calc_nterms_base(
     model_best.fit(
             t=model_init.t, y=model_init.y,
             dy=model_init.dy, filts=model_init.filts)
-    # Speed up the finding the best period by setting the period_range to the
-    # zoomed window. Set period_range to that of model_init at completion.
-    model_best.optimizer.period_range = (zoom_min_period, zoom_max_period)
-    model_best.best_period
     model_best.optimizer.period_range = model_init.optimizer.period_range
+    # Calculate best period.
+    model_best.best_period
     if show_summary_plots:
         # Plot delta BICs after all terms have been fit.
         print(80*'-')
