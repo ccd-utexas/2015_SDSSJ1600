@@ -730,29 +730,3 @@ test_model_geometry_from_light_curve(
     ref_geoms=(0.952136990768, 0.0478630092323, 2.2458916679, np.deg2rad(90.0),
                0.000481306260183, 0.163880773527))
 
-
-# TODO: redo test when light curve parameters include phase, period.
-# def test_model_quantities_from_lc_velr_stellar(
-#     phase0=np.nan,
-#     period=271209600.0,
-#     lc_params=(0.164135455619, 0.165111260919,
-#                0.0478630092323, 1.0, 0.758577575029, np.nan),
-#     velr_b=33e3,
-#     stellar_b=(2.61291629258e+30, 760266000.0, 1.40922538433),
-#     ref_quants=(np.nan, 271209600.0, np.deg2rad(90.0), 1.55823297919e+12,
-#                 2.324294844333284e+31,
-#                 33e3, 1.42442349898e+12, 2.61291629258e+30, 760266000.0,
-#                 1.40922538433,
-#                 3.1e3, 1.33809480207e+11, 2.78149153727e+31, 258864241950.22577,
-#                 1.0)):
-#     r"""Pytest style test for code/utils.py:
-#     model_quantities_from_light_curve_model
-
-#     """
-#     test_quants = \
-#         code.utils.model_quantities_from_lc_velr_stellar(
-#             phase0=phase0, period=period, lc_params=lc_params, velr_b=velr_b,
-#             stellar_b=stellar_b)
-#     # NOTE: remove equal_nan when phase0 is computed from light curve
-#     assert np.all(np.isclose(ref_quants, test_quants, equal_nan=True))
-#     return None
