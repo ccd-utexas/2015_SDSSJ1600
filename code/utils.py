@@ -16,11 +16,13 @@ import warnings
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
+import astropy.constants as astropy_con
 import binstarsolver as bss
 import gatspy.periodic as gatspy_per
 import matplotlib.pyplot as plt
 import numba
 import numpy as np
+import scipy.constants as scipy_con
 import seaborn as sns
 
 
@@ -1651,10 +1653,10 @@ def model_geometry_from_light_curve(params, show_plots=False):
     params : tuple
         Tuple of floats representing the model light curve parameters.
         `params = \
-            (phase_orb_int, phase_orb_ext, light_oc, light_ref, light_tr)`.
+            (phase_rel_int, phase_rel_ext, light_oc, light_ref, light_tr)`.
         Units are:
-        {phase_orb_*} = phase of external/internal
-            events (tangencies) in radians
+        {phase_rel_*} = phases of external/internal
+            events (tangencies) in decimal phase.
             int: internal tangencies, end/begin ingress/egress
             ext: external tangencies, begin/end ingress/egress
         {light_*} = relative flux
@@ -1668,21 +1670,20 @@ def model_geometry_from_light_curve(params, show_plots=False):
     Returns
     -------
     geoms : tuple
-        Tuple of floats representing the geometric parameters
-        of a spherical binary model from light curve values.
+        Tuple of floats as the geometric parameters of a spherical binary model.
         _s/_g denotes smaller/greater-radius star
-        geoms = \
+        `geoms = \
             (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
-             incl_rad, radius_sep_s, radius_sep_g)
+             incl_deg, radius_sep_s, radius_sep_g)`
         Units are:
-        {flux_intg_rel_s, flux_intg_rel_g} = relative integrated flux
+        {flux_intg_rel_*} = relative integrated flux
         {radii_ratio_lt} = radius_s / radius_g from light levels
-        {incl_rad} = orbital inclination in radians
-        {radius_sep_s, radius_sep_g} = radius in star-star separation distance
+        {incl_deg} = orbital inclination in degrees
+        {radius_sep_*} = radius in star-star separation distance
         
     See Also
     --------
-    seg_model_fluxes_rel, model_quantities_from_lc_velr_stellar
+    seg_model_fluxes_rel
 
     Notes
     -----
@@ -1696,8 +1697,10 @@ def model_geometry_from_light_curve(params, show_plots=False):
     
     """
     # TODO: Check input.
-    (phase_orb_int, phase_orb_ext,
+    (phase_rel_int, phase_rel_ext,
      light_oc, light_ref, light_tr) = params
+    phase_orb_int = 2.0*np.pi * phase_rel_int
+    phase_orb_ext = 2.0*np.pi * phase_rel_ext
     (flux_intg_rel_s, flux_intg_rel_g) = \
         bss.utils.calc_fluxes_intg_rel_from_light(
             light_oc=light_oc, light_ref=light_ref)
@@ -1713,7 +1716,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
         warnings.warn(
             ("\n" +
              "Inclination does not yield self-consistent solution.\n"))
-        incl_rad = np.deg2rad(90)
+        incl_rad = np.deg2rad(90.0)
     sep_proj_ext = \
         bss.utils.calc_sep_proj_from_incl_phase(
             incl=incl_rad, phase_orb=phase_orb_ext)
@@ -1723,23 +1726,99 @@ def model_geometry_from_light_curve(params, show_plots=False):
     (radius_sep_s, radius_sep_g) = \
         bss.utils.calc_radii_sep_from_seps(
             sep_proj_ext=sep_proj_ext, sep_proj_int=sep_proj_int)
+    incl_deg = np.rad2deg(incl_rad)
     geoms = \
         (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
-         incl_rad, radius_sep_s, radius_sep_g)
+         incl_deg, radius_sep_s, radius_sep_g)
     return geoms
 
 
-def model_quants_from_lc_velrs(velr_s, velr_g, period, ):
-    # Follow example from caroll and ostlie.
-    # INPUT:
-    # velr_s, velr_g
-    # period, t0, t1, t2, t3, t4
-    # light_oc, light_ref, light_tr
-    # incl
-    # OUTPUT:
-    # axis_s, axis_g
-    # mass_ratio, mass_sum
-    # mass_s, mass_g
-    # radius_s, radius_g
-    # flux_rad_ratio, teff_ratio
-    pass
+def model_quants_from_velrs_lc_geoms(
+    velr_s, velr_g, period, light_oc, light_ref, light_tr, incl_deg):
+    r"""Calculate physical quantities of a spherical binary system model
+    from its radial velocities, light curve paramters, and geometric parameters.
+    The system is assumed to be an eclipsing double-line spectroscopic binary.
+
+    Parameters
+    ----------
+    velr_s : float
+    velr_g : float
+        Semi-amplitude (half peak-to-peak) of radial velocities of
+        smaller-radius (_s), greater-radius (_g) stars.
+        Unit is barycentric kilometers per second.
+    period : float
+        Period of light curve model that best represents the time series data.
+        Unit is seconds.
+    light_oc  : float
+    light_ref : float
+    light_tr  : float
+        Light level at occultation event (_oc), between eclipses (_ref),
+        and at transit event (_tr). Unit is relative integrated flux.
+    radius_sep_s : float
+    radius_sep_g : float
+        Stellar radius in star-star separation distance.
+    incl_deg : float
+        Orbital inclination. Angle between line of sight and the axis of the
+        orbit. Unit is degrees.
+
+    Returns
+    -------
+    quants : tuple
+        Tuple of floats as the physical quantities of a spherical binary model.
+        _s/_g denotes smaller/greater-radius star
+        `quants = \
+            (axis_s, axis_g, radius_s, radius_g, mass_s, mass_g,
+             flux_rad_ratio)`
+        Units are:
+            {axis_*} : Semi-major axis of star's orbit. Unit is AU.
+            {radius_*} : Radius of star. Unit is Rsun.
+            {mass_*} : Mass of star. Unit is Msun.
+            {flux_rad_ratio} : Ratio of radiative fluxes of smaller star to
+                greater star. `flux_rad_ratio = flux_rad_s / flux_rad_g`
+                Note: flux_rad = sigma*Teff**4 = Lstar/(4*pi*Rstar**2)
+
+    See Also
+    --------
+    model_geometry_from_light_curve
+
+    References
+    ----------
+    .. [1] http://nbviewer.ipython.org/github/ccd-utexas/binstarsolver/blob/
+        master/examples/20150419T163000_binstarsolver_book_examples.ipynb
+
+    """
+    # Following [1]_.
+    # TODO: Check input.
+    # Convert input from astronomical units to MKS units.
+    velr_s *= scipy_con.kilo
+    velr_g *= scipy_con.kilo
+    incl_rad = np.deg2rad(incl_deg)
+    # Calculate semimajor axes.
+    axis_s = bss.utils.calc_semimaj_axis_from_period_velr_incl(
+        period=period, velr=velr_s, incl=incl_rad)
+    axis_g = bss.utils.calc_semimaj_axis_from_period_velr_incl(
+        period=period, velr=velr_g, incl=incl_rad)
+    # Calculate stellar radii.
+    sep = bss.utils.calc_sep_from_semimaj_axes(axis_1=axis_s, axis_2=axis_g)
+    radius_s = bss.utils.calc_radius_from_radius_sep(
+        radius_sep=radius_sep_s, sep=sep)
+    radius_g = bss.utils.calc_radius_from_radius_sep(
+        radius_sep=radius_sep_g, sep=sep)
+    # Calculate stellar masses.
+    mass_ratio = bss.utils.calc_mass_ratio_from_velrs(
+        velr_1=velr_s, velr_2=velr_g)
+    mass_sum = bss.utils.calc_mass_sum_from_period_velrs_incl(
+        period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad)
+    (mass_s, mass_g) = bss.utils.calc_masses_from_ratio_sum(
+        mass_ratio=mass_ratio, mass_sum=mass_sum)
+    # Calculate ratio of radiative fluxes.
+    flux_rad_ratio = bss.utils.calc_flux_rad_ratio_from_light(
+        light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    # Convert output from MKS units to astronomical units.
+    axis_s   /= astropy_con.au.value
+    axis_g   /= astropy_con.au.value
+    radius_s /= astropy_con.R_sun.value
+    radius_g /= astropy_con.R_sun.value
+    mass_s   /= astropy_con.M_sun.value
+    mass_g   /= astropy_con.M_sun.value
+    return (axis_s, axis_g, radius_s, radius_g, mass_s, mass_g, flux_rad_ratio)

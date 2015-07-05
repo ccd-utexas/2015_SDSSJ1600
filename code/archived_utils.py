@@ -830,7 +830,7 @@ def model_quantities_from_lc_velr_stellar(
     """Calculate physical quantities of a spherical binary system model
     from its light curve parameters, radial velocity of the brighter star,
     and a stellar model of the brighter star modeled from a spectrum.
-    The system is assumed to be an eclipsing single-line spetroscopic binary.
+    The system is assumed to be an eclipsing single-line spectroscopic binary.
     
     Parameters
     ----------

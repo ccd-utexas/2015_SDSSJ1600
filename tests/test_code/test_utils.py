@@ -730,3 +730,4 @@ test_model_geometry_from_light_curve(
     ref_geoms=(0.952136990768, 0.0478630092323, 2.2458916679, np.deg2rad(90.0),
                0.000481306260183, 0.163880773527))
 
+# TODO: test_model_quants_from_velrs_lc_geoms using example from binstarsolver
