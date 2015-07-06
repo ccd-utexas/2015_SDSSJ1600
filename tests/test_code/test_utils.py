@@ -65,12 +65,11 @@ def test_calc_sig_levels_cases():
         calc_sig_levels
 
         """
-        (test_sig_periods, test_sig_powers) = code.utils.calc_sig_levels(
+        test_sig_powers = code.utils.calc_sig_levels(
             model=model, sig_periods=sig_periods, sigs=sigs,
             num_shuffles=num_shuffles)
-        for (ref_sig_power, test_sig_power) in \
-            zip(ref_sig_powers, test_sig_powers):
-            assert np.all(np.isclose(ref_sig_power, test_sig_power))
+        for key in ref_sig_powers:
+            assert np.all(np.isclose(ref_sig_powers[key], test_sig_powers[key]))
         return None
     # Test adapted from
     # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
@@ -89,11 +88,11 @@ def test_calc_sig_levels_cases():
          3.74849907e-03, 3.33200001e-03]
     ref_sig_powers = \
         {95.0: \
-            [0.25057282, 0.2677001 , 0.25552392, 0.27637847, 0.26304325,
-             0.26439929, 0.24606125, 0.24080878, 0.24847659, 0.2455511 ],
+            [0.25057282, 0.26775067, 0.25570964, 0.27631931, 0.26301363,
+             0.26418357, 0.2457524 , 0.24058861, 0.24839262, 0.24550175],
          99.0: \
-            [0.32243259, 0.31733991, 0.29113095, 0.33229025, 0.29343131,
-             0.29407153, 0.26594016, 0.26332914, 0.29706267, 0.2731428 ]}
+            [0.32243259, 0.31730944, 0.29074282, 0.33228392, 0.29340864,
+             0.29399481, 0.26595011, 0.26355087, 0.29701109, 0.2730018]}
     test_calc_sig_levels(
         model=model, sig_periods=sig_periods, ref_sig_powers=ref_sig_powers,
         sigs=sigs, num_shuffles=num_shuffles)
