@@ -4,6 +4,90 @@ SDSS J160036.83+272117.8. Code here is no longer used.
 """
 
 
+# ARCHIVED
+# print("`dataframes.balanced.all_data`: In order to refine the period, weight each\n" +
+#       "dataset by phase coverage by drawing random samples without replacement.")
+# # NOTE: This is done after estimating the period from the CRTS-only data.
+# # Necessary for finding the period since the McDonald data only samples
+# # the primary eclipse.
+# dataframes.balanced = code.utils.Container()
+# dataframes.balanced.all_data = dataframes.all_data.copy()
+# collections_phasecovers = dict(crts=1.0, mcd=0.1)
+# collection_min_phasecover = min(
+#     collections_phasecovers,
+#     key=lambda coll: collections_phasecovers[coll])
+# min_phasecover = collections_phasecovers[collection_min_phasecover]
+# collections_tfmasks = dict()
+# for collection in dataframes.all_data['collection'].unique():
+#     collections_tfmasks[collection] = \
+#         (dataframes.all_data['collection'] == collection)
+# collection_min_phasecover_num = np.count_nonzero(
+#     collections_tfmasks[collection_min_phasecover])
+# for (collection, phasecover) in sorted(collections_phasecovers.items()):
+#     balanced_collection_num = int(
+#         (phasecover / min_phasecover) * collection_min_phasecover_num)
+#     tfmask_collection = collections_tfmasks[collection]
+#     num_appends = int(
+#         balanced_collection_num / np.count_nonzero(tfmask_collection)) - 1
+#     for _ in range(num_appends):
+#         df_to_append = dataframes.all_data.loc[tfmask_collection].copy()
+#         dataframes.balanced.all_data = dataframes.balanced.all_data.append(
+#             df_to_append, ignore_index=True)
+# print()
+# print(("`dataframes.balanced.all_data`: Number of observations.\n" +
+#        "Total: {num}").format(num=len(dataframes.balanced.all_data)))
+# for collection in sorted(dataframes.balanced.all_data['collection'].unique()):
+#     print(("{col}: {num}").format(
+#         col=collection,
+#         num=np.count_nonzero(
+#                 dataframes.balanced.all_data['collection'] == collection)))
+
+
+# ARCHIVED
+# print("`dataframes.subsample.all_data`: For computational limits, reduce the number\n" +
+#       "of datapoints by drawing random samples without replacement from"
+#       "the balanced dataset.")
+# rand_idxs = np.random.choice(len(dataframes.balanced.all_data), size=int(1e4), replace=False)
+# dataframes.subsample = code.utils.Container()
+# dataframes.subsample.all_data = dataframes.balanced.all_data.iloc[rand_idxs].copy()
+# print()
+# print(("`dataframes.subsample.all_data`: Number of observations.\n" +
+#        "Total: {num}").format(num=len(dataframes.subsample.all_data)))
+# for collection in sorted(dataframes.subsample.all_data['collection'].unique()):
+#     print(("{col}: {num}").format(
+#         col=collection,
+#         num=np.count_nonzero(
+#                 dataframes.subsample.all_data['collection'] == collection)))
+
+
+# ARCHIVED
+# print("`dataframes.subsample`: In order to refine the period, weight each\n" +
+#       "dataset by phase coverage by drawing random samples without replacement.")
+# # NOTE: Necessary for finding the period since the McDonald data only samples
+# # the primary eclipse.
+# dataframes.subsample = pd.DataFrame(columns=dataframes.crts.all_data.columns)
+# collections_tfmasks = dict()
+# min_obs = len(dataframes.crts.all_data)
+# for collection in dataframes.crts.all_data['collection'].unique():
+#     tfmask_collection = (dataframes.crts.all_data['collection'] == collection)
+#     collections_tfmasks[collection] = tfmask_collection
+#     min_obs = min(
+#         min_obs, np.count_nonzero(tfmask_collection))
+# for (collection, tfmask) in collections_tfmasks.items():
+#     num_obs = np.count_nonzero(tfmask)
+#     rand_idxs = np.random.choice(num_obs, size=min_obs, replace=False)
+#     df_to_append = dataframes.crts.all_data.loc[tfmask].iloc[rand_idxs].copy()
+#     dataframes.subsample = dataframes.subsample.append(
+#         df_to_append, ignore_index=True)
+# print()
+# print(("`dataframes.subsample`: Number of observations.\n" +
+#        "Total: {num}").format(num=len(dataframes.subsample)))
+# for collection in sorted(dataframes.subsample['collection'].unique()):
+#     print(("{col}: {num}").format(
+#         col=collection,
+#         num=np.count_nonzero(dataframes.subsample['collection'] == collection)))
+
+
 def calc_periodogram(
     times, fluxes, fluxes_err, filts, min_period=None, max_period=None,
     num_periods=None, sigs=(95.0, 99.0), num_shuffles=100,
@@ -714,7 +798,6 @@ def calc_phased_histogram(
     return (hist_phases, hist_fluxes, hist_fluxes_err)
 
 
-
 @numba.jit(nopython=True)
 def calc_ymeans(hash_filts, hash_unique_filts, ymean_by_filt):
     r"""For speeding up 
@@ -739,3 +822,282 @@ def calc_ymeans(hash_filts, hash_unique_filts, ymean_by_filt):
             idx_uniq += 1
         idx_filt += 1
     return ymeans
+
+
+
+def model_quantities_from_lc_velr_stellar(
+    period, phase0, lc_params, velr_b, stellar_b):
+    """Calculate physical quantities of a spherical binary system model
+    from its light curve parameters, radial velocity of the brighter star,
+    and a stellar model of the brighter star modeled from a spectrum.
+    The system is assumed to be an eclipsing single-line spectroscopic binary.
+    
+    Parameters
+    ----------
+    phase0 : float
+    period : float
+        TODO: define `period`, `phase0` from `lc_params`
+    lc_params : tuple
+        Tuple of floats representing the model light curve parameters.
+        `lc_params = \
+            (phase_orb_int, phase_orb_ext,
+             light_oc, light_ref, light_tr)`.
+        Units are:
+        {phase_orb_int/ext} = phase of external/internal
+            events (tangencies) in radians
+            int: internal tangencies, end/begin ingress/egress
+            ext: external tangencies, begin/end ingress/egress
+        {light_oc/ref/tr} = relative flux
+            oc:  occulatation event
+            ref: between-eclipse reference light level
+            tr:  transit event
+    velr_b : float
+        Semi-amplitude (half peak-to-peak) of radial velocity
+        of the brighter star (greater integrated flux).
+        Unit is meters/second.
+    stellar_b : tuple
+        Tuple of floats representing the parameters of a stellar model
+        that was fit to the brighter star (greater integrated flux) from
+        single-line spectroscopy of the system.
+        `stellar_b = (mass_b, radius_b, teff_b)`
+        Units are MKS:
+        {mass} = stellar mass in kg
+        {radius} = stellar radius in meters
+        {teff} = stellar effective temperature in Kelvin
+    
+    Returns
+    -------
+    quants : tuple
+        Tuple of floats representing the physical quantities
+        of a spherical binary model from geometric parameters.
+        `quants = \
+            (# Quantities for the entire binary system
+             phase0, period, incl_rad, sep, massfunc,
+             # Quantities for the smaller-radius star ('_s')
+             velr_s, axis_s, mass_s, radius_s, teff_s,
+             # Quantities for the greater-radius star ('_g')
+             velr_g, axis_g, mass_g, radius_g, teff_g)`
+        Units are MKS:
+        {phase0} = time at which phase of orbit is 0 in
+            Unixtime Barycentric Coordinate Time
+        {period} = period of orbit in seconds
+        {incl_rad} = orbital inclination in radians
+        {sep} = star-star separation distance in meters
+        {massfunc} = mass function of system in kg
+            massfunc = (m2 * sin(i))**3 / (m1 + m2)**2
+            where star 1 is the brighter star
+        {velr} = radial velocity amplitude (half peak-to-peak) in m/s
+        {axis} = semimajor axis of star's orbit in meters
+        {radius} = stellar radius in meters
+        {mass} = stellar mass in kg
+        {teff} = stellar effective temperature in Kelvin
+
+    See Also
+    --------
+    model_geometry_from_light_curve, seg_model_fluxes_rel
+
+    Notes
+    -----
+    * Eclipse light levels are referred to by transit or occultaton events
+      of the smaller-radius star, not by "primary" or "secondary", which can
+      depend on context. For an example, see [1]_.
+    * Quantities are calculated as follows:
+      * The system geometry is modeled from `lc_params`. The relative
+        integrated fluxes of the stars determine whether brighter/dimmer
+        star ('_b'/'_d') has the smaller/greater radius ('_s'/'_g').
+      * `phase0, period, incl_rad`: Defined from `lc_params`.
+      * `massfunc`: Calculated from `lc_params`, `velr_b`.
+      * `mass_b`, `radius_b`, `teff_b`: Defined from `stellar_b`.
+      * `axis_b`: Calculated from `lc_params`, `velr_b`.
+      * `mass_d`, `velr_d`, `axis_d`: Calculated from
+        `lc_params`, `velr_b`, `stellar_b`
+      * `sep`: Calculated from `lc_params`, `velr_b`, `stellar_b`.
+      * `radius_d`, `teff_d`: Calculated from
+        `lc_params`, `velr_b`, `stellar_b`
+      * From `lc_params`, the ratio of radii as determined by light levels may
+        be different from that determined by timings if there was no
+        self-consistent solution for inclination.
+
+    References
+    ----------
+    .. [1] https://github.com/ccd-utexas/binstarsolver/wiki/Supported_examples
+    .. [2] Budding, 2007, "Introduction to Astronomical Photometry"
+
+    """
+    ########################################
+    # Check input and define and compute physical quantities.
+    # Quantities for:
+    #     brighter star: '_b'
+    #     dimmer star: '_d'
+    #     smaller-radius star: '_s'
+    #     greater-radius star: '_g'
+    # Brightness is total integrated flux (total luminosity).
+    # TODO: Insert check input here.
+    # For system:
+    #     From light curve:
+    #         Define the phase, period, inclination.
+    #     From light curve and radial velocity:
+    #         Calculate the mass function.
+    # TODO: get phase0 and period from lc_params.
+    (phase_orb_int, phase_orb_ext,
+     light_oc, light_ref, light_tr) = lc_params
+    time_begin_ingress = -phase_orb_ext*period / (2.0*np.pi)
+    time_end_ingress   = -phase_orb_int*period / (2.0*np.pi)
+    time_begin_egress  = -time_end_ingress
+    (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
+     incl_rad, radius_sep_s, radius_sep_g) = \
+        model_geometry_from_light_curve(params=lc_params, show_plots=False)
+    massfunc = \
+        bss.utils.calc_mass_function_from_period_velr(
+            period=period, velr1=velr_b)
+    # For brighter star:
+    #     From stellar model:
+    #         Define the mass, radius, temperature.
+    #     From light curve, radial velocity:
+    #         Calculate the semi-major axis.
+    (mass_b, radius_b, teff_b) = stellar_b
+    axis_b = \
+        bss.utils.calc_semimaj_axis_from_period_velr_incl(
+            period=period, velr=velr_b, incl=incl_rad)
+    # For dimmer star:
+    #     From light curve, radial velocity, stellar model:
+    #         Calculate the mass.
+    #         Calculate the radial velocity.
+    #         Calculate the semi-major axis.
+    mass_d = \
+        bss.utils.calc_mass2_from_period_velr1_incl_mass1(
+            period=period, velr1=velr_b, incl=incl_rad, mass1=mass_b)
+    velr_d = \
+        bss.utils.calc_velr2_from_masses_period_incl_velr1(
+            mass1=mass_b, mass2=mass_d, velr1=velr_b,
+            period=period, incl=incl_rad)
+    axis_d = \
+        bss.utils.calc_semimaj_axis_from_period_velr_incl(
+            period=period, velr=velr_d, incl=incl_rad)
+    # For system:
+    #     From light curve, radial velocity, stellar model:
+    #         Calculate the star-star separation distance.
+    sep = \
+        bss.utils.calc_sep_from_semimaj_axes(
+            axis_1=axis_b, axis_2=axis_d)
+    # Use relative integrated fluxes to determine whether brighter/dimmer star
+    # has smaller/greater radius.
+    # If smaller-radius star is brighter than the greater-radius star, then the
+    # parameters from the radial velocities and the stellar model refer to the
+    # smaller-radius star. Otherwise, the parameters refer to the
+    # greater-radius star. 
+    if flux_intg_rel_s >= flux_intg_rel_g:
+        smaller_is_brighter = True
+    else:
+        smaller_is_brighter = False
+    # Assign quantities to respective stars.
+    if smaller_is_brighter:
+        velr_s = velr_b
+        (mass_s, radius_s, teff_s) = (mass_b, radius_b, teff_b)
+        axis_s = axis_b
+        (mass_g, velr_g, axis_g) = (mass_d, velr_d, axis_d)
+    else:
+        velr_g = velr_b
+        (mass_g, radius_g, teff_g) = (mass_b, radius_b, teff_b)
+        axis_g = axis_b
+        (mass_s, velr_s, axis_s) = (mass_d, velr_d, axis_d)
+    # For dimmer star:
+    #     From light curve, radial velocity, stellar model:
+    #         Calculate the radius, effective temperature.
+    # NOTE: Ratios below are quantities of
+    # smaller-radius star / greater-radius star
+    radii_ratio_sep = radius_sep_s / radius_sep_g
+    flux_rad_ratio = \
+        bss.utils.calc_flux_rad_ratio_from_light(
+            light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    teff_ratio = \
+        bss.utils.calc_teff_ratio_from_flux_rad_ratio(
+            flux_rad_ratio=flux_rad_ratio)
+    if smaller_is_brighter:
+        radius_g = radius_s / radii_ratio_sep
+        teff_g = teff_s / teff_ratio
+    else:
+        radius_s = radius_g * radii_ratio_sep
+        teff_s = teff_g * teff_ratio
+    ########################################
+    # Check calculations and return.
+    # Check that the masses are calculated consistently.
+    assert (mass_d >= massfunc)
+    assert np.isclose(
+        mass_s / mass_g,
+        bss.utils.calc_mass_ratio_from_velrs(
+            velr_1=velr_s, velr_2=velr_g))
+    assert np.isclose(
+        mass_s + mass_g,
+        bss.utils.calc_mass_sum_from_period_velrs_incl(
+            period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad))
+    # Check that the semi-major axes are calculated consistently.
+    assert np.isclose(sep, axis_s + axis_g)
+    # Check that the radii are calculated consistently.
+    # There may be a difference if there was no self-consistent solution
+    # for inclination.
+    assert radius_s <= radius_g
+    rtol = 1e-1
+    try:
+        assert np.isclose(radii_ratio_lt, radii_ratio_sep, rtol=rtol)
+    except AssertionError:
+        warnings.warn(
+            ("\n" +
+             "Radii ratios do not agree to within rtol={rtol}.\n" +
+             "The solution for inclination from the light curve\n" +
+             "may not be self-consistent:\n" +
+             "    radii_ratio_lt              = {rrl}\n" +
+             "    radius_sep_s / radius_sep_g = {rrs}").format(
+                 rtol=rtol,
+                 rrl=radii_ratio_lt,
+                 rrs=radii_ratio_sep))
+    try:
+        radius_s_from_velrs_times = \
+            bss.utils.calc_radius_from_velrs_times(
+                velr_1=velr_s, velr_2=velr_g,
+                time_1=time_begin_ingress, time_2=time_end_ingress)
+        radius_s_from_radius_sep = \
+            bss.utils.calc_radius_from_radius_sep(
+                radius_sep=radius_sep_s, sep=sep)
+        radius_g_from_velrs_times = \
+            bss.utils.calc_radius_from_velrs_times(
+                velr_1=velr_s, velr_2=velr_g,
+                time_1=time_begin_ingress, time_2=time_begin_egress)
+        radius_g_from_radius_sep = \
+            bss.utils.calc_radius_from_radius_sep(
+                radius_sep=radius_sep_g, sep=sep)
+        assert np.isclose(
+            radius_s, radius_s_from_velrs_times, rtol=rtol)
+        assert np.isclose(
+            radius_s, radius_s_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_s_from_velrs_times, radius_s_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_g, radius_g_from_velrs_times, rtol=rtol)
+        assert np.isclose(
+            radius_g, radius_g_from_radius_sep, rtol=rtol)
+        assert np.isclose(
+            radius_g_from_velrs_times, radius_g_from_radius_sep, rtol=rtol)
+    except AssertionError:
+        warnings.warn(
+            ("\n" +
+             "Radii computed from the following methods do not agree\n" +
+             "to within rtol={rtol}. Units are meters:\n" +
+             "    radius_s                  = {rs:.2e}\n" +
+             "    radius_s_from_velrs_times = {rs_vt:.2e}\n" +
+             "    radius_s_from_radius_sep  = {rs_rs:.2e}\n" +
+             "    radius_g                  = {rg:.2e}\n" +
+             "    radius_g_from_velrg_times = {rg_vt:.2e}\n" +
+             "    radius_g_from_radius_sep  = {rg_rs:.2e}").format(
+                 rtol=rtol,
+                 rs=radius_s,
+                 rs_vt=radius_s_from_velrs_times,
+                 rs_rs=radius_s_from_radius_sep,
+                 rg=radius_g,
+                 rg_vt=radius_g_from_velrs_times,
+                 rg_rs=radius_g_from_radius_sep))
+    quants = \
+        (phase0, period, incl_rad, sep, massfunc,
+         velr_s, axis_s, mass_s, radius_s, teff_s,
+         velr_g, axis_g, mass_g, radius_g, teff_g)
+    return quants

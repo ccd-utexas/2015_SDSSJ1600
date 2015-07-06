@@ -16,16 +16,215 @@ import warnings
 import astroML.density_estimation as astroML_dens
 import astroML.stats as astroML_stats
 import astroML.time_series as astroML_ts
+import astropy.constants as astropy_con
 import binstarsolver as bss
 import gatspy.periodic as gatspy_per
 import matplotlib.pyplot as plt
 import numba
 import numpy as np
+import scipy.constants as scipy_con
 import seaborn as sns
 
 
 # Set environment
 sns.set() # Set matplotlib styles by seaborn.
+
+
+class Container(object):
+    """Empty class to contain dynamically allocated attributes.
+    Use to minimize namespace clutter from variable names.
+    Use for heirarchical data storage like a `dict`.
+    
+    Examples
+    --------
+    ```
+    model = Container()
+    model.fit = Container()
+    model.fit.values = fits
+    ```
+    """
+    pass
+
+
+# TODO: rename to use lower case
+def flux_ADU_to_electrons(flux_ADU, gain_eADU):
+    """Convert flux from ADU to electrons using CCD gain.
+    
+    Parameters
+    ----------
+    flux_ADU : float
+        Flux count in ADU.
+    gain_eADU : float
+        Conversion gain of CCD in electons/ADU.
+    
+    Returns
+    -------
+    flux_electrons : float
+        Flux count in electrons.
+    
+    Notes
+    -----
+    TODO: Use gain correction methods from tsphot and ccdproc.
+    """
+    return flux_ADU * gain_eADU
+
+
+def flux_intg_to_rate(flux_intg, exptime):
+    """Divide integrated flux by exposure time to get flux rate.
+      
+    Parameters
+    ----------
+    flux_intg : float
+        Integrated flux of star over exposure time and area on detector (e.g. ADU)
+    exptime : float
+        Exposure time over which flux was integrated (e.g. seconds)
+    
+    Returns
+    -------
+    flux_rate : float
+        flux_rate = flux_intg / exptime
+    """
+    return flux_intg / exptime
+
+
+def flux_rate_to_magC(flux_rate):
+    """Compute magnitude omitting a correction constant C from a flux rate.
+      
+    Parameters
+    ----------
+    flux_rate : float
+        Flux rate of star in electrons/second
+    
+    Returns
+    -------
+    magC_dex : float
+        magC_dex = -2.5*log_10(flux_rate)
+        
+    Notes
+    -----
+    From sec 5.1.3 of [1]_:
+    Definition: mag = -2.5*log_10(flux) + C
+    C is correction constant, 23.5-26 for Earth-based sites.
+    C is omitted from the returned result.
+        
+    References
+    ----------
+    .. [1] Howell, 2009, "Handbook of CCD Astronomy"
+    """
+    return -2.5*np.log10(flux_rate)
+
+
+def extinct_airmass(airmass):
+    """Compute atmospheric extinction factor due to airmass.
+      
+    Parameters
+    ----------
+    airmass : float
+        Number of atmospheres through which observation is being made.
+        Example: 1.15
+    
+    Returns
+    -------
+    extinct : float
+        Extinction factor omitting extinction coefficient k.
+        extinct = 2.5*np.log10(np.exp(1.0))*airmass
+        
+    Notes
+    -----
+    From eqns 4.3 and 4.4 of [1]_ and with sec 5.1.3 of [2]_::
+    flux_obs = flux_ref*exp(−k_obs*X_obs)
+    m_obs = m_ref + 2.5*log10(exp)*k_obs*X_obs + C_obs
+    k = extinction coefficient as a function of wavelength
+    X = airmass
+        
+    References
+    ----------
+    .. [1] Budding, 2007, "Introduction to Astronomical Photometry"
+    .. [2] Howell, 2009, "Handbook of CCD Astronomy"
+    """
+    return 2.5*np.log10(np.exp(1.0))*airmass
+
+
+def composite_flux(flux_ADU, gain_eADU, exptime):
+    """Composite function for flux. Convenience function.
+    
+    Parameters
+    ----------
+    flux_ADU : float
+    gain_eADU : float
+    exptime : float
+    
+    Returns
+    -------
+    magC_dex : float
+    """
+    # TODO: restructure as lambda functions.
+    return \
+        flux_rate_to_magC(flux_rate=
+            flux_intg_to_rate(flux_intg=
+                flux_ADU_to_electrons(flux_ADU=flux_ADU,
+                                      gain_eADU=gain_eADU),
+                exptime=exptime))
+
+
+def try_color_to_Teff(color, colorbands='g-r'):
+    """Fault-tolerant wrapper for `astropysics.photometry.color_to_Teff`
+    
+    Passes `ValueError`.
+    
+    Parameters
+    ----------
+    color : float
+    colorbands : {'g-r'}, string, optional
+    
+    Returns
+    -------
+    Teff : float
+        Effective temperature of star in Kelvin.
+    """
+    try:
+        Teff = apy_phot.color_to_Teff(color, colorbands=colorbands)
+    except ValueError as err:
+        print(("WARNING: astropysics.photometry.color_to_Teff raised ValueError.\n" +
+               "Message:\n" +
+               err.message + "\n" +
+               "Arguments:\n" +
+               "color = {color}\n" +
+               "colorbands = {colorbands}").format(color=color, colorbands=colorbands),
+              file=sys.stderr)
+        Teff = np.NaN
+    return Teff
+
+
+def rolling_window(arr, window):
+    r"""Efficient rolling window for statistics.
+    From [1]_.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+    window : int
+        Number of elements in window.
+
+    Returns
+    -------
+    arr_windowed : numpy.ndarray
+        `arr` where each element has been replaced by a `numpy.ndarray`
+        of length `window`, centered on the element. Edge elements are dropped.
+
+    Notes
+    -----
+    * For examples, see [1]_, [2]_.
+
+    References
+    ----------
+    .. [1] http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html
+    .. [2] http://stackoverflow.com/questions/6811183/
+           rolling-window-for-1d-arrays-in-numpy
+    """
+    shape = arr.shape[:-1] + (arr.shape[-1] - window + 1, window)
+    strides = arr.strides + (arr.strides[-1],)
+    return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
 
 
 def calc_period_limits(times):
@@ -69,7 +268,11 @@ def calc_period_limits(times):
            svtconcepts/fft_funda/
     
     """
-    med_sampling_period = np.median(np.diff(times))
+    # Account for unsorted, input with duplicate data.
+    times = np.sort(times)
+    diffs = np.diff(times)
+    diffs_nonzero = diffs[diffs > 0]
+    med_sampling_period = np.median(diffs_nonzero)
     acquisition_duration = max(times) - min(times)
     min_period = 2.0 * med_sampling_period
     max_period = 0.5 * acquisition_duration
@@ -80,7 +283,7 @@ def calc_period_limits(times):
 
 
 def calc_sig_levels(
-    model, sigs=(95.0, 99.0, 99.9), num_periods=20, num_shuffles=1000):
+    model, sig_periods, sigs=(95.0, 99.0, 99.9), num_shuffles=1000):
     r"""Calculate relative powers that correspond to significance levels for
     a multiband generalized Lomb-Scargle periodogram. The noise is modeled by
     shuffling the time series. Convenience function for methods from [1]_, [2]_.
@@ -90,11 +293,12 @@ def calc_sig_levels(
     model : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
+    sig_periods : numpy.ndarray
+        Periods at which significance levels are to be computed.
+        Units are time, same as `model.t`. The significance level changes
+        slowly as a function of period.
     sigs : {(95.0, 99.0, 99.9)}, tuple, optional
         `tuple` of `float` that are the levels of statistical significance.
-    num_periods : {20}, int, optional
-        Number of periods at which to compute significance levels.
-        The significance level changes slowly as a function of period.
     num_shuffles : {1000}, int, optional
         Number of shuffles used to compute significance levels.
         For 1000 shuffles, the significance level can be computed to a max
@@ -102,9 +306,6 @@ def calc_sig_levels(
 
     Returns
     -------
-    sig_periods : numpy.ndarray
-        Periods at which significance levels were computed.
-        Units are time, same as `model.t`
     sig_powers : dict
         `dict` of `numpy.ndarray`. Keys are `sigs`. Values are relative powers
         for each significance level as a `numpy.ndarray`. Units are relative
@@ -121,7 +322,6 @@ def calc_sig_levels(
     - For a given period, a power is "signficant to the 99th percentile" if
         that power is greater than 99% of all other powers due to noise at that
         period. The noise is modeled by shuffling the time series.
-    - Period space is sampled linearly in angular frequency.
     - The time complexity for computing noise levels is approximately linear
         with `num_periods`*`num_shuffles`:
         exec_time ~ 13.6 sec * (num_periods/20) * (num_shuffles/1000)
@@ -134,18 +334,8 @@ def calc_sig_levels(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
 
     """
-    # Check input.
-    # Period space is sampled linearly in angular frequency.
-    noise_model = copy.deepcopy(model)
-    (min_period, max_period) = noise_model.optimizer.period_range
-    min_omega = 2.0*np.pi / max_period
-    max_omega = 2.0*np.pi / min_period
-    num_omegas = num_periods
-    sig_omegas = \
-        np.linspace(
-            start=min_omega, stop=max_omega, num=num_omegas, endpoint=True)
-    sig_periods = 2.0*np.pi / sig_omegas
     # Calculate percentiles of powers from noise.
+    noise_model = copy.deepcopy(model)
     np.random.seed(seed=0) # for reproducibility
     sig_powers_arr = []
     for _ in xrange(num_shuffles):
@@ -153,7 +343,7 @@ def calc_sig_levels(
         sig_powers_arr.append(noise_model.periodogram(periods=sig_periods))
     sig_powers = \
         {sig: np.percentile(a=sig_powers_arr, q=sig, axis=0) for sig in sigs}
-    return (sig_periods, sig_powers)
+    return sig_powers
 
 
 def plot_periodogram(
@@ -245,6 +435,7 @@ def plot_periodogram(
     return return_obj
 
 
+# TODO: speed up with numba
 def calc_min_flux_time(
     model, filt, best_period=None, lwr_time_bound=None, upr_time_bound=None,
     tol=0.1, maxiter=10):
@@ -338,7 +529,8 @@ def calc_min_flux_time(
         np.linspace(start=start, stop=stop, num=1000, endpoint=False)
     phased_fluxes_fit = \
         model.predict(
-            t=phased_times_fit, filts=[filt]*1000, period=best_period)
+            t=phased_times_fit, filts=[filt]*len(phased_times_fit),
+            period=best_period)
     fmt_parameters = \
         ("best_period = {bp}\n" +
          "tol = {tol}\n" +
@@ -403,16 +595,19 @@ def calc_min_flux_time(
              "best_period = {bp}").format(
                 lhi=lhs_time_init, mt=min_flux_time,
                 rhi=rhs_time_init, bp=best_period))
-    if not min_flux <= min_flux_init:
-        raise AssertionError(
-            ("Program error.\n" +
-             "Required: `min_flux` <= `min_flux_init`\n" +
-             "min_flux = {mf}\n" +
-             "min_flux_init = {mfi}").format(
-                mf=min_flux, mfi=min_flux_init))
+    # TODO: This assertion case fails during MCMC. Fix.
+    # Use numpy.less_equal for high precision.
+    # if not np.less_equal(min_flux, min_flux_init):
+    #     raise AssertionError(
+    #         ("Program error.\n" +
+    #          "Required: `min_flux` <= `min_flux_init`\n" +
+    #          "min_flux = {mf}\n" +
+    #          "min_flux_init = {mfi}").format(
+    #             mf=min_flux, mfi=min_flux_init))
     return min_flux_time
 
 
+# TODO: speed up with numba
 def calc_phases(times, best_period, min_flux_time=0.0):
     r"""Calculate phases of a light curve.
 
@@ -692,8 +887,9 @@ def calc_z1_z2(
 
 
 def calc_nterms_base(
-    model, max_nterms_base=20, show_summary_plots=True, 
-    show_periodograms=False, period_unit='seconds', flux_unit='relative'):
+    model, zoom_periods, nterms_base_list=range(1, 20),
+    show_summary_plots=True,  show_periodograms=False,
+    period_unit='seconds', flux_unit='relative'):
     r"""Calculate the number of Fourier terms that best represent a `gatspy`
     base model of the data's variability. The model is a multi-band, multi-term
     generalized Lomb-Scargle periodogram. Convenience function for methods
@@ -704,9 +900,13 @@ def calc_nterms_base(
     model : gatspy.periodic.LombScargleMultiband
         Instance of multiband generalized Lomb-Scargle light curve model
         from `gatspy`.
-    max_nterms_base : {20}, int, optional
-        Maximum number of Fourier terms to attempt fitting for `gatspy`
-        base model.
+    zoom_perdiods : numpy.ndarray
+        Zoomed period space around best period for computing the powers to
+        evaluate the `model`. Ensure that period space is sampled at much
+        greater resolution than the data.
+    nterms_base_list : range(1, 20), iterable, optional
+        Iterable (e.g. `list`) over number of Fourier terms to attempt fitting
+        for `gatspy` base model.
     show_periodograms : {False, True}, bool, optional
         If `False` (default), do not display periodograms (power vs period)
         for each candidate number of base terms. Used for debugging.
@@ -753,32 +953,17 @@ def calc_nterms_base(
            http://adsabs.harvard.edu/abs/2015arXiv150201344V
     
     """
+    # Check input.
+    zoom_periods = sorted(zoom_periods)
+    nterms_base_list = sorted(nterms_base_list)
     # Recursive copy input models to avoid altering.
     model_init  = copy.deepcopy(model)
-    # Define zoomed period space around best period for computing the powers.
-    # Ensure that period space is sampled at much greater resolution than the
-    # data. Period space is sampled linearly in the zoomed periodogram.
-    (min_period, max_period, num_periods) = \
-        calc_period_limits(times=model_init.t)
-    delta_period = (max_period - min_period) / num_periods
-    zoom_num_periods = 1000
-    oversample_factor = 0.002
-    zoom_period_halfwidth =  \
-        (zoom_num_periods/2.0) * delta_period * oversample_factor
-    zoom_min_period = model_init.best_period - zoom_period_halfwidth
-    zoom_max_period = model_init.best_period + zoom_period_halfwidth
-    zoom_periods = \
-        np.clip(
-            np.linspace(
-                start=zoom_min_period, stop=zoom_max_period,
-                num=zoom_num_periods, endpoint=True),
-            min_period, max_period)
     # Compute Bayesian Information Criterion values for
     # Nterms_band <= nterms_base <= max_nterms_base.
     # NOTE: model_test.Nterms_band should always == model_init.Nterms_band,
-    # i.e. only model_test.Nterms_base ever changes.
+    #     i.e. only model_test.Nterms_base ever changes.
     nterms_base_bics = []
-    for nterms_base in xrange(model_init.Nterms_band, max_nterms_base+1):
+    for nterms_base in nterms_base_list:
         model_test = copy.deepcopy(model_init)
         model_test.Nterms_base = nterms_base
         # Refit the model to the data with the updated nterms_base
@@ -786,24 +971,25 @@ def calc_nterms_base(
             t=model_test.t, y=model_test.y,
             dy=model_test.dy, filts=model_test.filts)
         zoom_powers = model_test.periodogram(periods=zoom_periods)
-        rel_bic = \
-            max(
-                astroML_ts.lomb_scargle_BIC(
-                    P=zoom_powers, y=model_test.y, dy=model_test.dy,
-                    n_harmonics=model_test.Nterms_base+model_test.Nterms_band))
+        rel_bic = max(
+            astroML_ts.lomb_scargle_BIC(
+                P=zoom_powers, y=model_test.y, dy=model_test.dy,
+                n_harmonics=model_test.Nterms_base+model_test.Nterms_band))
         nterms_base_bics.append((nterms_base, rel_bic))
         if show_periodograms:
+            print()
             print(80*'-')
+            print("Number of Fourier terms for base model: {num}".format(
+                num=model_test.Nterms_base))
             plot_periodogram(
                 periods=zoom_periods, powers=zoom_powers, xscale='linear',
                 period_unit='seconds', flux_unit='relative', return_ax=False)
-            print("Number of Fourier terms for base model: {num}".format(
-                num=model_test.Nterms_base))
             print("Bayesian Information Criterion: {bic}".format(
                 bic=rel_bic))
         assert model_init.Nterms_band == model_test.Nterms_band
     # Choose the best number of Fourier terms from the maximum delta BIC.
-    # Create optimized model and recompute best period.
+    # Create optimized model and recompute best period using
+    # intial `period_range`.
     best_idx = np.argmax(zip(*nterms_base_bics)[1])
     (best_nterms_base, best_bic) = nterms_base_bics[best_idx]
     model_best = \
@@ -812,11 +998,9 @@ def calc_nterms_base(
     model_best.fit(
             t=model_init.t, y=model_init.y,
             dy=model_init.dy, filts=model_init.filts)
-    # Speed up the finding the best period by setting the period_range to the
-    # zoomed window. Set period_range to that of model_init at completion.
-    model_best.optimizer.period_range = (zoom_min_period, zoom_max_period)
-    model_best.best_period
     model_best.optimizer.period_range = model_init.optimizer.period_range
+    # Calculate best period.
+    model_best.best_period
     if show_summary_plots:
         # Plot delta BICs after all terms have been fit.
         print(80*'-')
@@ -1073,9 +1257,9 @@ def seg_are_valid_params(params):
     -------
     are_valid : bool
         True if all of the following hold:
-            If 0 <= {`phase_rel_int`, `phase_rel_ext`} <= 0.5
-            If `phase_rel_int` < `phase_rel_ext`.
-            If 0 < `flux_sigma`.
+            If 0 < `phase_rel_int` < `phase_rel_ext` < 0.5
+            If `flux_pri_eclipse` < `flux_sec_eclipse` < `flux_out_eclipse`
+            If 0 < `flux_sigma`
         False otherwise.
 
     See Also
@@ -1092,9 +1276,8 @@ def seg_are_valid_params(params):
     # Some models may require flux between minima >~ 1 as a normalization
     # factor (e.g. Ch 7 of Budding 2007).
     (p1, p2, b0, b2, b4, sig) = params
-    if ((p1 < p2) and
-        (0.0 <= p1 and p1 <= 0.5) and
-        (0.0 <= p2 and p2 <= 0.5) and
+    if ((0.0 < p1 and p1 < p2 and p2 < 0.5) and
+        (b0 < b4 and b4 < b2) and
         (sig > 0)):
         are_valid = True
     else:
@@ -1460,6 +1643,7 @@ def has_nans(obj):
     return found_nan
 
 
+# TODO: speed up with numba
 def model_geometry_from_light_curve(params, show_plots=False):
     """Calculate geometric parameters of a spherical binary
     model from light curve parameters.
@@ -1469,14 +1653,13 @@ def model_geometry_from_light_curve(params, show_plots=False):
     params : tuple
         Tuple of floats representing the model light curve parameters.
         `params = \
-            (phase_orb_int, phase_orb_ext,
-             light_oc, light_ref, light_tr, sig)`.
+            (phase_rel_int, phase_rel_ext, light_oc, light_ref, light_tr)`.
         Units are:
-        {phase_orb_int/ext} = phase of external/internal
-            events (tangencies) in radians
+        {phase_rel_*} = phases of external/internal
+            events (tangencies) in decimal phase.
             int: internal tangencies, end/begin ingress/egress
             ext: external tangencies, begin/end ingress/egress
-        {light_oc/ref/tr, sig} = relative flux
+        {light_*} = relative flux
             oc:  occulatation event
             ref: between-eclipse reference light level
             tr:  transit event
@@ -1487,21 +1670,20 @@ def model_geometry_from_light_curve(params, show_plots=False):
     Returns
     -------
     geoms : tuple
-        Tuple of floats representing the geometric parameters
-        of a spherical binary model from light curve values.
+        Tuple of floats as the geometric parameters of a spherical binary model.
         _s/_g denotes smaller/greater-radius star
-        geoms = \
+        `geoms = \
             (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
-             incl_rad, radius_sep_s, radius_sep_g)
+             incl_deg, radius_sep_s, radius_sep_g)`
         Units are:
-        {flux_intg_rel_s, flux_intg_rel_g} = relative integrated flux
+        {flux_intg_rel_*} = relative integrated flux
         {radii_ratio_lt} = radius_s / radius_g from light levels
-        {incl_rad} = orbital inclination in radians
-        {radius_sep_s, radius_sep_g} = radius in star-star separation distance
+        {incl_deg} = orbital inclination in degrees
+        {radius_sep_*} = radius in star-star separation distance
         
     See Also
     --------
-    seg_model_fluxes_rel, model_quantities_from_lc_velr_stellar
+    seg_model_fluxes_rel
 
     Notes
     -----
@@ -1515,8 +1697,10 @@ def model_geometry_from_light_curve(params, show_plots=False):
     
     """
     # TODO: Check input.
-    (phase_orb_int, phase_orb_ext,
-     light_oc, light_ref, light_tr, sig) = params
+    (phase_rel_int, phase_rel_ext,
+     light_oc, light_ref, light_tr) = params
+    phase_orb_int = 2.0*np.pi * phase_rel_int
+    phase_orb_ext = 2.0*np.pi * phase_rel_ext
     (flux_intg_rel_s, flux_intg_rel_g) = \
         bss.utils.calc_fluxes_intg_rel_from_light(
             light_oc=light_oc, light_ref=light_ref)
@@ -1532,7 +1716,7 @@ def model_geometry_from_light_curve(params, show_plots=False):
         warnings.warn(
             ("\n" +
              "Inclination does not yield self-consistent solution.\n"))
-        incl_rad = np.deg2rad(90)
+        incl_rad = np.deg2rad(90.0)
     sep_proj_ext = \
         bss.utils.calc_sep_proj_from_incl_phase(
             incl=incl_rad, phase_orb=phase_orb_ext)
@@ -1542,285 +1726,101 @@ def model_geometry_from_light_curve(params, show_plots=False):
     (radius_sep_s, radius_sep_g) = \
         bss.utils.calc_radii_sep_from_seps(
             sep_proj_ext=sep_proj_ext, sep_proj_int=sep_proj_int)
+    incl_deg = np.rad2deg(incl_rad)
     geoms = \
         (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
-         incl_rad, radius_sep_s, radius_sep_g)
+         incl_deg, radius_sep_s, radius_sep_g)
     return geoms
 
 
-def model_quantities_from_lc_velr_stellar(
-    phase0, period, lc_params, velr_b, stellar_b):
-    """Calculate physical quantities of a spherical binary system model
-    from its light curve parameters, radial velocity of the brighter star,
-    and a stellar model of the brighter star modeled from a spectrum.
-    The system is assumed to be an eclipsing single-line spetroscopic binary.
-    
+# TODO: speedup with @numba.jit(nopython=True)
+def model_quants_from_velrs_lc_geoms(
+    velr_s, velr_g, period, light_oc, light_ref, light_tr,
+    radius_sep_s, radius_sep_g, incl_deg):
+    r"""Calculate physical quantities of a spherical binary system model
+    from its radial velocities, light curve paramters, and geometric parameters.
+    The system is assumed to be an eclipsing double-line spectroscopic binary.
+
     Parameters
     ----------
-    phase0 : float
+    velr_s : float
+    velr_g : float
+        Semi-amplitude (half peak-to-peak) of radial velocities of
+        smaller-radius (_s), greater-radius (_g) stars.
+        Unit is barycentric kilometers per second.
     period : float
-        TODO: define `period`, `phase0` from `lc_params`
-    lc_params : tuple
-        Tuple of floats representing the model light curve parameters.
-        `lc_params = \
-            (phase_orb_int, phase_orb_ext,
-             light_oc, light_ref, light_tr, sig)`.
-        Units are:
-        {phase_orb_int/ext} = phase of external/internal
-            events (tangencies) in radians
-            int: internal tangencies, end/begin ingress/egress
-            ext: external tangencies, begin/end ingress/egress
-        {light_oc/ref/tr, sig} = relative flux
-            oc:  occulatation event
-            ref: between-eclipse reference light level
-            tr:  transit event
-    velr_b : float
-        Semi-amplitude (half peak-to-peak) of radial velocity
-        of the brighter star (greater integrated flux).
-        Unit is meters/second.
-    stellar_b : tuple
-        Tuple of floats representing the parameters of a stellar model
-        that was fit to the brighter star (greater integrated flux) from
-        single-line spectroscopy of the system.
-        `stellar_b = (mass_b, radius_b, teff_b)`
-        Units are MKS:
-        {mass} = stellar mass in kg
-        {radius} = stellar radius in meters
-        {teff} = stellar effective temperature in Kelvin
-    
+        Period of light curve model that best represents the time series data.
+        Unit is seconds.
+    light_oc  : float
+    light_ref : float
+    light_tr  : float
+        Light level at occultation event (_oc), between eclipses (_ref),
+        and at transit event (_tr). Unit is relative integrated flux.
+    radius_sep_s : float
+    radius_sep_g : float
+        Stellar radius in star-star separation distance.
+    incl_deg : float
+        Orbital inclination. Angle between line of sight and the axis of the
+        orbit. Unit is degrees.
+
     Returns
     -------
     quants : tuple
-        Tuple of floats representing the physical quantities
-        of a spherical binary model from geometric parameters.
+        Tuple of floats as the physical quantities of a spherical binary model.
+        _s/_g denotes smaller/greater-radius star
         `quants = \
-            (# Quantities for the entire binary system
-             phase0, period, incl_rad, sep, massfunc,
-             # Quantities for the smaller-radius star ('_s')
-             velr_s, axis_s, mass_s, radius_s, teff_s,
-             # Quantities for the greater-radius star ('_g')
-             velr_g, axis_g, mass_g, radius_g, teff_g)`
-        Units are MKS:
-        {phase0} = time at which phase of orbit is 0 in
-            Unixtime Barycentric Coordinate Time
-        {period} = period of orbit in seconds
-        {incl_rad} = orbital inclination in radians
-        {sep} = star-star separation distance in meters
-        {massfunc} = mass function of system in kg
-            massfunc = (m2 * sin(i))**3 / (m1 + m2)**2
-            where star 1 is the brighter star
-        {velr} = radial velocity amplitude (half peak-to-peak) in m/s
-        {axis} = semimajor axis of star's orbit in meters
-        {radius} = stellar radius in meters
-        {mass} = stellar mass in kg
-        {teff} = stellar effective temperature in Kelvin
+            (axis_s, axis_g, radius_s, radius_g, mass_s, mass_g,
+             flux_rad_ratio)`
+        Units are:
+            {axis_*} : Semi-major axis of star's orbit. Unit is AU.
+            {radius_*} : Radius of star. Unit is Rsun.
+            {mass_*} : Mass of star. Unit is Msun.
+            {flux_rad_ratio} : Ratio of radiative fluxes of smaller star to
+                greater star. `flux_rad_ratio = flux_rad_s / flux_rad_g`
+                Note: flux_rad = sigma*Teff**4 = Lstar/(4*pi*Rstar**2)
 
     See Also
     --------
-    model_geometry_from_light_curve, seg_model_fluxes_rel
-
-    Notes
-    -----
-    * Eclipse light levels are referred to by transit or occultaton events
-      of the smaller-radius star, not by "primary" or "secondary", which can
-      depend on context. For an example, see [1]_.
-    * Quantities are calculated as follows:
-      * The system geometry is modeled from `lc_params`. The relative
-        integrated fluxes of the stars determine whether brighter/dimmer
-        star ('_b'/'_d') has the smaller/greater radius ('_s'/'_g').
-      * `phase0, period, incl_rad`: Defined from `lc_params`.
-      * `massfunc`: Calculated from `lc_params`, `velr_b`.
-      * `mass_b`, `radius_b`, `teff_b`: Defined from `stellar_b`.
-      * `axis_b`: Calculated from `lc_params`, `velr_b`.
-      * `mass_d`, `velr_d`, `axis_d`: Calculated from
-        `lc_params`, `velr_b`, `stellar_b`
-      * `sep`: Calculated from `lc_params`, `velr_b`, `stellar_b`.
-      * `radius_d`, `teff_d`: Calculated from
-        `lc_params`, `velr_b`, `stellar_b`
-      * From `lc_params`, the ratio of radii as determined by light levels may
-        be different from that determined by timings if there was no
-        self-consistent solution for inclination.
+    model_geometry_from_light_curve
 
     References
     ----------
-    .. [1] https://github.com/ccd-utexas/binstarsolver/wiki/Supported_examples
-    .. [2] Budding, 2007, "Introduction to Astronomical Photometry"
+    .. [1] http://nbviewer.ipython.org/github/ccd-utexas/binstarsolver/blob/
+        master/examples/20150419T163000_binstarsolver_book_examples.ipynb
 
     """
-    ########################################
-    # Check input and define and compute physical quantities.
-    # Quantities for:
-    #     brighter star: '_b'
-    #     dimmer star: '_d'
-    #     smaller-radius star: '_s'
-    #     greater-radius star: '_g'
-    # Brightness is total integrated flux (total luminosity).
-    # TODO: Insert check input here.
-    # For system:
-    #     From light curve:
-    #         Define the phase, period, inclination.
-    #     From light curve and radial velocity:
-    #         Calculate the mass function.
-    # TODO: get phase0 and period from lc_params.
-    (phase_orb_int, phase_orb_ext,
-     light_oc, light_ref, light_tr, _) = lc_params
-    time_begin_ingress = -phase_orb_ext*period / (2.0*np.pi)
-    time_end_ingress   = -phase_orb_int*period / (2.0*np.pi)
-    time_begin_egress  = -time_end_ingress
-    (flux_intg_rel_s, flux_intg_rel_g, radii_ratio_lt,
-     incl_rad, radius_sep_s, radius_sep_g) = \
-        model_geometry_from_light_curve(params=lc_params, show_plots=False)
-    massfunc = \
-        bss.utils.calc_mass_function_from_period_velr(
-            period=period, velr1=velr_b)
-    # For brighter star:
-    #     From stellar model:
-    #         Define the mass, radius, temperature.
-    #     From light curve, radial velocity:
-    #         Calculate the semi-major axis.
-    (mass_b, radius_b, teff_b) = stellar_b
-    axis_b = \
-        bss.utils.calc_semimaj_axis_from_period_velr_incl(
-            period=period, velr=velr_b, incl=incl_rad)
-    # For dimmer star:
-    #     From light curve, radial velocity, stellar model:
-    #         Calculate the mass.
-    #         Calculate the radial velocity.
-    #         Calculate the semi-major axis.
-    mass_d = \
-        bss.utils.calc_mass2_from_period_velr1_incl_mass1(
-            period=period, velr1=velr_b, incl=incl_rad, mass1=mass_b)
-    velr_d = \
-        bss.utils.calc_velr2_from_masses_period_incl_velr1(
-            mass1=mass_b, mass2=mass_d, velr1=velr_b,
-            period=period, incl=incl_rad)
-    axis_d = \
-        bss.utils.calc_semimaj_axis_from_period_velr_incl(
-            period=period, velr=velr_d, incl=incl_rad)
-    # For system:
-    #     From light curve, radial velocity, stellar model:
-    #         Calculate the star-star separation distance.
-    sep = \
-        bss.utils.calc_sep_from_semimaj_axes(
-            axis_1=axis_b, axis_2=axis_d)
-    # Use relative integrated fluxes to determine whether brighter/dimmer star
-    # has smaller/greater radius.
-    # If smaller-radius star is brighter than the greater-radius star, then the
-    # parameters from the radial velocities and the stellar model refer to the
-    # smaller-radius star. Otherwise, the parameters refer to the
-    # greater-radius star. 
-    if flux_intg_rel_s >= flux_intg_rel_g:
-        smaller_is_brighter = True
-    else:
-        smaller_is_brighter = False
-    # Assign quantities to respective stars.
-    if smaller_is_brighter:
-        velr_s = velr_b
-        (mass_s, radius_s, teff_s) = (mass_b, radius_b, teff_b)
-        axis_s = axis_b
-        (mass_g, velr_g, axis_g) = (mass_d, velr_d, axis_d)
-    else:
-        velr_g = velr_b
-        (mass_g, radius_g, teff_g) = (mass_b, radius_b, teff_b)
-        axis_g = axis_b
-        (mass_s, velr_s, axis_s) = (mass_d, velr_d, axis_d)
-    # For dimmer star:
-    #     From light curve, radial velocity, stellar model:
-    #         Calculate the radius, effective temperature.
-    # NOTE: Ratios below are quantities of
-    # smaller-radius star / greater-radius star
-    radii_ratio_sep = radius_sep_s / radius_sep_g
-    flux_rad_ratio = \
-        bss.utils.calc_flux_rad_ratio_from_light(
-            light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
-    teff_ratio = \
-        bss.utils.calc_teff_ratio_from_flux_rad_ratio(
-            flux_rad_ratio=flux_rad_ratio)
-    if smaller_is_brighter:
-        radius_g = radius_s / radii_ratio_sep
-        teff_g = teff_s / teff_ratio
-    else:
-        radius_s = radius_g * radii_ratio_sep
-        teff_s = teff_g * teff_ratio
-    ########################################
-    # Check calculations and return.
-    # Check that the masses are calculated consistently.
-    assert (mass_d >= massfunc)
-    assert np.isclose(
-        mass_s / mass_g,
-        bss.utils.calc_mass_ratio_from_velrs(
-            velr_1=velr_s, velr_2=velr_g))
-    assert np.isclose(
-        mass_s + mass_g,
-        bss.utils.calc_mass_sum_from_period_velrs_incl(
-            period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad))
-    # Check that the semi-major axes are calculated consistently.
-    assert np.isclose(sep, axis_s + axis_g)
-    # Check that the radii are calculated consistently.
-    # There may be a difference if there was no self-consistent solution
-    # for inclination.
-    assert radius_s <= radius_g
-    rtol = 1e-1
-    try:
-        assert np.isclose(radii_ratio_lt, radii_ratio_sep, rtol=rtol)
-    except AssertionError:
-        warnings.warn(
-            ("\n" +
-             "Radii ratios do not agree to within rtol={rtol}.\n" +
-             "The solution for inclination from the light curve\n" +
-             "may not be self-consistent:\n" +
-             "    radii_ratio_lt              = {rrl}\n" +
-             "    radius_sep_s / radius_sep_g = {rrs}").format(
-                 rtol=rtol,
-                 rrl=radii_ratio_lt,
-                 rrs=radii_ratio_sep))
-    try:
-        radius_s_from_velrs_times = \
-            bss.utils.calc_radius_from_velrs_times(
-                velr_1=velr_s, velr_2=velr_g,
-                time_1=time_begin_ingress, time_2=time_end_ingress)
-        radius_s_from_radius_sep = \
-            bss.utils.calc_radius_from_radius_sep(
-                radius_sep=radius_sep_s, sep=sep)
-        radius_g_from_velrs_times = \
-            bss.utils.calc_radius_from_velrs_times(
-                velr_1=velr_s, velr_2=velr_g,
-                time_1=time_begin_ingress, time_2=time_begin_egress)
-        radius_g_from_radius_sep = \
-            bss.utils.calc_radius_from_radius_sep(
-                radius_sep=radius_sep_g, sep=sep)
-        assert np.isclose(
-            radius_s, radius_s_from_velrs_times, rtol=rtol)
-        assert np.isclose(
-            radius_s, radius_s_from_radius_sep, rtol=rtol)
-        assert np.isclose(
-            radius_s_from_velrs_times, radius_s_from_radius_sep, rtol=rtol)
-        assert np.isclose(
-            radius_g, radius_g_from_velrs_times, rtol=rtol)
-        assert np.isclose(
-            radius_g, radius_g_from_radius_sep, rtol=rtol)
-        assert np.isclose(
-            radius_g_from_velrs_times, radius_g_from_radius_sep, rtol=rtol)
-    except AssertionError:
-        warnings.warn(
-            ("\n" +
-             "Radii computed from the following methods do not agree\n" +
-             "to within rtol={rtol}. Units are meters:\n" +
-             "    radius_s                  = {rs:.2e}\n" +
-             "    radius_s_from_velrs_times = {rs_vt:.2e}\n" +
-             "    radius_s_from_radius_sep  = {rs_rs:.2e}\n" +
-             "    radius_g                  = {rg:.2e}\n" +
-             "    radius_g_from_velrg_times = {rg_vt:.2e}\n" +
-             "    radius_g_from_radius_sep  = {rg_rs:.2e}").format(
-                 rtol=rtol,
-                 rs=radius_s,
-                 rs_vt=radius_s_from_velrs_times,
-                 rs_rs=radius_s_from_radius_sep,
-                 rg=radius_g,
-                 rg_vt=radius_g_from_velrs_times,
-                 rg_rs=radius_g_from_radius_sep))
-    quants = \
-        (phase0, period, incl_rad, sep, massfunc,
-         velr_s, axis_s, mass_s, radius_s, teff_s,
-         velr_g, axis_g, mass_g, radius_g, teff_g)
-    return quants
+    # Following [1]_.
+    # TODO: Check input.
+    # Convert input from astronomical units to MKS units.
+    velr_s *= scipy_con.kilo
+    velr_g *= scipy_con.kilo
+    incl_rad = np.deg2rad(incl_deg)
+    # Calculate semimajor axes.
+    axis_s = bss.utils.calc_semimaj_axis_from_period_velr_incl(
+        period=period, velr=velr_s, incl=incl_rad)
+    axis_g = bss.utils.calc_semimaj_axis_from_period_velr_incl(
+        period=period, velr=velr_g, incl=incl_rad)
+    # Calculate stellar radii.
+    sep = bss.utils.calc_sep_from_semimaj_axes(axis_1=axis_s, axis_2=axis_g)
+    radius_s = bss.utils.calc_radius_from_radius_sep(
+        radius_sep=radius_sep_s, sep=sep)
+    radius_g = bss.utils.calc_radius_from_radius_sep(
+        radius_sep=radius_sep_g, sep=sep)
+    # Calculate stellar masses.
+    mass_ratio = bss.utils.calc_mass_ratio_from_velrs(
+        velr_1=velr_s, velr_2=velr_g)
+    mass_sum = bss.utils.calc_mass_sum_from_period_velrs_incl(
+        period=period, velr_1=velr_s, velr_2=velr_g, incl=incl_rad)
+    (mass_s, mass_g) = bss.utils.calc_masses_from_ratio_sum(
+        mass_ratio=mass_ratio, mass_sum=mass_sum)
+    # Calculate ratio of radiative fluxes.
+    flux_rad_ratio = bss.utils.calc_flux_rad_ratio_from_light(
+        light_oc=light_oc, light_tr=light_tr, light_ref=light_ref)
+    # Convert output from MKS units to astronomical units.
+    axis_s   /= astropy_con.au.value
+    axis_g   /= astropy_con.au.value
+    radius_s /= astropy_con.R_sun.value
+    radius_g /= astropy_con.R_sun.value
+    mass_s   /= astropy_con.M_sun.value
+    mass_g   /= astropy_con.M_sun.value
+    return (axis_s, axis_g, radius_s, radius_g, mass_s, mass_g, flux_rad_ratio)

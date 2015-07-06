@@ -27,6 +27,16 @@ import numpy as np
 import code
 
 
+# TODO: test_Container
+# TODO: test_flux_ADU_to_electrons
+# TODO: test_flux_intg_to_rate
+# TODO: test_flux_rate_to_magC
+# TODO: test_extinct_airmass
+# TODO: test_composite_flux
+# TODO: test_try_color_to_Teff
+# TODO: test_rolling_window
+
+
 def test_calc_period_limits(
     times=xrange(10), ref_min_period=2.0, ref_max_period=4.5,
     ref_num_periods=23):
@@ -49,20 +59,17 @@ def test_calc_sig_levels_cases():
     """
     # Define function for testing cases.
     def test_calc_sig_levels(
-        model, ref_sig_periods, ref_sig_powers, sigs=(95.0, 99.0),
-        num_periods=10, num_shuffles=100):
+        model, sig_periods, ref_sig_powers, sigs=(95.0, 99.0),
+        num_shuffles=100):
         r"""Pytest for code/utils.py:
         calc_sig_levels
 
         """
-        (test_sig_periods, test_sig_powers) = \
-            code.utils.calc_sig_levels(
-                model=model, sigs=sigs, num_periods=num_periods,
-                num_shuffles=num_shuffles)
-        assert np.all(np.isclose(ref_sig_periods, test_sig_periods))
-        for (ref_sig_power, test_sig_power) in \
-            zip(ref_sig_powers, test_sig_powers):
-            assert np.all(np.isclose(ref_sig_power, test_sig_power))
+        test_sig_powers = code.utils.calc_sig_levels(
+            model=model, sig_periods=sig_periods, sigs=sigs,
+            num_shuffles=num_shuffles)
+        for key in ref_sig_powers:
+            assert np.all(np.isclose(ref_sig_powers[key], test_sig_powers[key]))
         return None
     # Test adapted from
     # https://github.com/astroML/gatspy/blob/master/examples/MultiBand.ipynb
@@ -74,22 +81,21 @@ def test_calc_sig_levels_cases():
     (min_period, max_period, _) = code.utils.calc_period_limits(times=times)
     model.optimizer.period_range = (min_period, max_period)
     sigs = (95.0, 99.0)
-    num_periods = 10
     num_shuffles = 100
-    ref_sig_periods = \
+    sig_periods = \
         [1.66051856e+03, 2.99875187e-02, 1.49938947e-02, 9.99595991e-03,
          7.49698121e-03, 5.99759039e-03, 4.99799500e-03, 4.28399755e-03,
          3.74849907e-03, 3.33200001e-03]
     ref_sig_powers = \
         {95.0: \
-            [0.25057282, 0.2677001 , 0.25552392, 0.27637847, 0.26304325,
-             0.26439929, 0.24606125, 0.24080878, 0.24847659, 0.2455511 ],
+            [0.25057282, 0.26775067, 0.25570964, 0.27631931, 0.26301363,
+             0.26418357, 0.2457524 , 0.24058861, 0.24839262, 0.24550175],
          99.0: \
-            [0.32243259, 0.31733991, 0.29113095, 0.33229025, 0.29343131,
-             0.29407153, 0.26594016, 0.26332914, 0.29706267, 0.2731428 ]}
+            [0.32243259, 0.31730944, 0.29074282, 0.33228392, 0.29340864,
+             0.29399481, 0.26595011, 0.26355087, 0.29701109, 0.2730018]}
     test_calc_sig_levels(
-        model=model, sigs=sigs, num_periods=10, num_shuffles=100,
-        ref_sig_periods=ref_sig_periods, ref_sig_powers=ref_sig_powers)
+        model=model, sig_periods=sig_periods, ref_sig_powers=ref_sig_powers,
+        sigs=sigs, num_shuffles=num_shuffles)
     # TODO: insert additional test cases here.
     return None
 
@@ -171,6 +177,9 @@ def test_calc_min_flux_time_cases():
             tol=1e-5, maxiter=10)
     # TODO: insert additional test cases here.
     return None
+
+
+# TODO: test_calc_min_flux_time_opt_cases
 
 
 def test_calc_phases(
@@ -692,54 +701,54 @@ test_has_nans(
     found_nan=False)
 
 
-# TODO: update test when light curve parameters include phase, period.
 def test_model_geometry_from_light_curve(
-    params=(np.deg2rad(3.5), np.deg2rad(12.3), 0.898, 1.0, 0.739, 0.001),
+    params=(3.5/360.0, 12.3/360.0, 0.898, 1.0, 0.739),
     show_plots=False,
-    ref_geoms=(0.102, 0.898, 0.539115831462, np.deg2rad(88.8888888889),
+    ref_geoms=(0.102, 0.898, 0.539115831462, 88.8888888889,
                0.0749139580237, 0.138957275514)):
     r"""Pytest style test for code/utils.py:
     model_geometry_from_light_curve
+    Default test from Budding 2007 in 
+    http://nbviewer.ipython.org/github/ccd-utexas/binstarsolver/blob/
+    master/examples/20150419T163000_binstarsolver_book_examples.ipynb
 
     """
-    test_geoms = \
-        code.utils.model_geometry_from_light_curve(
-            params=params, show_plots=show_plots)
+    test_geoms = code.utils.model_geometry_from_light_curve(
+        params=params, show_plots=show_plots)
     assert np.all(np.isclose(ref_geoms, test_geoms))
     return None
 
 
 # Cases for test_model_geometry_from_light_curve
+# Test from Carroll and Ostlie 2007 in 
+# http://nbviewer.ipython.org/github/ccd-utexas/binstarsolver/blob/
+# master/examples/20150419T163000_binstarsolver_book_examples.ipynb
 test_model_geometry_from_light_curve(
-    params=(0.164135455619, 0.165111260919, 0.0478630092323, 1.0,
-            0.758577575029, 0.01),
+    params=(0.164135455619/(2.0*np.pi), 0.165111260919/(2.0*np.pi),
+            0.0478630092323, 1.0, 0.758577575029),
     show_plots=False,
-    ref_geoms=(0.952136990768, 0.0478630092323, 2.2458916679, np.deg2rad(90.0),
+    ref_geoms=(0.952136990768, 0.0478630092323, 2.2458916679, 90.0,
                0.000481306260183, 0.163880773527))
 
 
-# TODO: redo test when light curve parameters include phase, period.
-# def test_model_quantities_from_lc_velr_stellar(
-#     phase0=np.nan,
-#     period=271209600.0,
-#     lc_params=(0.164135455619, 0.165111260919,
-#                0.0478630092323, 1.0, 0.758577575029, np.nan),
-#     velr_b=33e3,
-#     stellar_b=(2.61291629258e+30, 760266000.0, 1.40922538433),
-#     ref_quants=(np.nan, 271209600.0, np.deg2rad(90.0), 1.55823297919e+12,
-#                 2.324294844333284e+31,
-#                 33e3, 1.42442349898e+12, 2.61291629258e+30, 760266000.0,
-#                 1.40922538433,
-#                 3.1e3, 1.33809480207e+11, 2.78149153727e+31, 258864241950.22577,
-#                 1.0)):
-#     r"""Pytest style test for code/utils.py:
-#     model_quantities_from_light_curve_model
+def test_model_quants_from_velrs_lc_geoms(
+    velr_s=33.0, velr_g=3.1, period=271209600.0,
+    light_oc=0.0478630092323, light_ref=1.0, light_tr=0.758577575029,
+    radius_sep_s=0.000481306260183, radius_sep_g=0.163880773527, incl_deg=90.0,
+    ref_quants=(
+        9.52168297795, 0.894461128231, 1.07833021001, 367.162456742,
+        1.31361736091, 13.9836686806, 3.94386308928)):
+    r"""Pytest for code/utils.py:
+    model_quants_from_velrs_lc_geoms
+    Default test is from Carroll and Ostlie 2007 with Budding 2007 from
+    http://nbviewer.ipython.org/github/ccd-utexas/binstarsolver/blob/
+    master/examples/20150419T163000_binstarsolver_book_examples.ipynb
 
-#     """
-#     test_quants = \
-#         code.utils.model_quantities_from_lc_velr_stellar(
-#             phase0=phase0, period=period, lc_params=lc_params, velr_b=velr_b,
-#             stellar_b=stellar_b)
-#     # NOTE: remove equal_nan when phase0 is computed from light curve
-#     assert np.all(np.isclose(ref_quants, test_quants, equal_nan=True))
-#     return None
+    """
+    test_quants = code.utils.model_quants_from_velrs_lc_geoms(
+        velr_s=velr_s, velr_g=velr_g, period=period,
+        light_oc=light_oc, light_ref=light_ref, light_tr=light_tr,
+        radius_sep_s=radius_sep_s, radius_sep_g=radius_sep_g,
+        incl_deg=incl_deg)
+    assert np.all(np.isclose(ref_quants, test_quants))
+    return None
