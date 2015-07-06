@@ -1733,8 +1733,10 @@ def model_geometry_from_light_curve(params, show_plots=False):
     return geoms
 
 
+# TODO: speedup with @numba.jit(nopython=True)
 def model_quants_from_velrs_lc_geoms(
-    velr_s, velr_g, period, light_oc, light_ref, light_tr, incl_deg):
+    velr_s, velr_g, period, light_oc, light_ref, light_tr,
+    radius_sep_s, radius_sep_g, incl_deg):
     r"""Calculate physical quantities of a spherical binary system model
     from its radial velocities, light curve paramters, and geometric parameters.
     The system is assumed to be an eclipsing double-line spectroscopic binary.
