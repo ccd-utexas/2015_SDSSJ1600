@@ -732,20 +732,20 @@ test_model_geometry_from_light_curve(
 
 
 def test_model_quants_from_velrs_lc_geoms(
-    velr_s=33000.0, velr_g=3100.0, period=271209600.0,
+    velr_s=33.0, velr_g=3.1, period=271209600.0,
     light_oc=0.0478630092323, light_ref=1.0, light_tr=0.758577575029,
     radius_sep_s=0.000481306260183, radius_sep_g=0.163880773527, incl_deg=90.0,
     ref_quants=(
-        1.42442349898e+12, 1.33809480207e+11, 760266000.0, 2.56521546e+11,
-        2.61291629258e+30, 2.78149153727e+31, 3.94386308928)):
+        9.52168297795, 0.894461128231, 1.07833021001, 367.162456742,
+        1.31361736091, 13.9836686806, 3.94386308928)):
     r"""Pytest for code/utils.py:
     model_quants_from_velrs_lc_geoms
-    Test from
+    Default test is from Carroll and Ostlie 2007 with Budding 2007 from
     http://nbviewer.ipython.org/github/ccd-utexas/binstarsolver/blob/
     master/examples/20150419T163000_binstarsolver_book_examples.ipynb
 
     """
-    test_quants = model_quants_from_velrs_lc_geoms(
+    test_quants = code.utils.model_quants_from_velrs_lc_geoms(
         velr_s=velr_s, velr_g=velr_g, period=period,
         light_oc=light_oc, light_ref=light_ref, light_tr=light_tr,
         radius_sep_s=radius_sep_s, radius_sep_g=radius_sep_g,
