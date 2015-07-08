@@ -1312,8 +1312,8 @@ def seg_model_fluxes_rel(params, phases):
             {phase_*} = decimal orbital phase
             {flux_*} = relative flux
     phases : numpy.ndarray
-        1D array of phases. Unit is decimal orbital phase.
-        Unit is decimal orbital phase. 0 <= `phase` <= 0.5.
+        1D array of orbital phases. Units are decimal orbital phase folded at
+        phase=0.5. 0 <= `phase` <= 0.5.
         
     Returns
     -------
@@ -1326,8 +1326,8 @@ def seg_model_fluxes_rel(params, phases):
     
     Notes
     -----
-    - Requires that all input parameters are already checked as valid.
-    - Segmented, symmetric eclipse light curve model:
+    * Requires that all input parameters are already checked as valid.
+    * Segmented, symmetric eclipse light curve model:
         Durations of primary minimum and secondary minimum are equal.
         Durations of primary ingress/egress and secondary ingress/egress
         are equal. Light curve is segmented into functions f(x).
@@ -1834,7 +1834,7 @@ def rv_are_valid_params(params):
     ----------
     params : tuple
         Tuple of floats as the model parameters.
-        `params = (rvel_amp, phase_offset, rvel_offset)`
+        `params = (rvel_amp, phase_offset, rvel_offset, rvel_sigma)`
         Units are:
             {rvel_*} = radial velocity in km/s
             {phase_*} = decimal orbital phase
@@ -1844,6 +1844,7 @@ def rv_are_valid_params(params):
     are_valid : bool
         True if all of the following hold:
             If 0 <= `phase_offset` <= 1
+            If 0 < `rvel_sigma`
         False otherwise.
 
     See Also
@@ -1858,8 +1859,9 @@ def rv_are_valid_params(params):
     """
     # Allow arbitrary radial velocitity values to model both primary and
     # secondary stars.
-    (_, phase_offset, _) = params
-    if (0.0 <= phase_offset) and (phase_offset <= 1.0):
+    (_, phase_offset, _, rvel_sigma) = params
+    if ((0.0 <= phase_offset) and (phase_offset <= 1.0) and
+        (0.0 < rvel_sigma)):
         are_valid = True
     else:
         are_valid = False
@@ -1867,10 +1869,55 @@ def rv_are_valid_params(params):
 
 
 @numba.jit(nopython=True)
-def rv_model_radial_velocities():
-    r"""
+def rv_model_radial_velocities(params, phases):
+    r"""Calculate the radial velocities for a sine model of the radial velocity
+    curve.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        `params = (rvel_amp, phase_offset, rvel_offset, rvel_sigma)`
+            rvel_amp: Radial velocity amplitude of the sine model.
+            phase_offset: Orbital phase offset of the sine model.
+            rvel_offset: Radia velocity offset of the sine model.
+            rvel_sigma: Standard deviation of the radial velocities. Assumes
+                that all radial velocities are drawn from the same distribution.
+        Units are:
+            {rvel_*} = radial velocity in km/s
+            {phase_*} = decimal orbital phase
+    phases : numpy.ndarray
+        1D array of orbital phases. Units are decimal orbital phase.
+        0 <= `phase` <= 1.0.
+
+    Returns
+    -------
+    rvels : numpy.ndarray
+        1D array of modeled radial velocities. Units are km/s.
+
+    See Also
+    --------
+    rv_are_valid_params
+
+    Notes
+    -----
+    * Requires that all input parameters are already checked as valid.
+    * Sine model of radial velocities:
+        rvel = rvel_amp * sin(2*pi(phase + phase_offset)) + rvel_offset
+
     """
-    pass
+    (rvel_amp, phase_offset, rvel_offset, _) = params
+    num_phases = len(phases)
+    rvels = np.empty(num_phases)
+    idx = 0
+    while idx < num_phases:
+        phase = phases[idx]
+        rvel = (
+            (rvel_amp * np.sin(2.0*np.pi * (phase + phase_offset))) + 
+            rvel_offset)
+        rvels[idx] = rvel
+        idx += 1
+    return rvels
 
 
 @numba.jit(nopython=True)

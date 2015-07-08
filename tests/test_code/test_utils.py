@@ -757,7 +757,7 @@ def test_model_quants_from_velrs_lc_geoms(
 
 
 def test_rv_are_valid_params(
-    params=(-100.0, 0.1, 300.0), ref_are_valid=True):
+    params=(-100.0, 0.1, 300.0, 20.0), ref_are_valid=True):
     r"""Pytest for code/utils.py:
     rv_are_valid_params
 
@@ -769,5 +769,22 @@ def test_rv_are_valid_params(
 
 # Cases for test_rv_are_valid_params
 test_rv_are_valid_params(
-    params=(-100.0, -0.1, 300.0), ref_are_valid=False)
+    params=(-100.0, -0.1, 300.0, 20.0), ref_are_valid=False)
+test_rv_are_valid_params(
+    params=(-100.0, 1.1, 300.0, 20.0), ref_are_valid=False)
+test_rv_are_valid_params(
+    params=(-100.0, 0.1, 300.0, -20.0), ref_are_valid=False)
 
+
+def test_rv_model_radial_velocities(
+    params=(1.0, 0.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    ref_rvels=[2.0, 1.0, 0.0, 1.0, 2.0]):
+    r"""Pytest for code/utils.py:
+    rv_model_radial_velocities
+
+    """
+    test_rvels = code.utils.rv_model_radial_velocities(
+        params=params, phases=phases)
+    assert np.all(np.isclose(ref_rvels, test_rvels))
+    return None
