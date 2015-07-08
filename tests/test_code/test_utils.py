@@ -584,7 +584,7 @@ def test_ls_log_posterior_cases():
 def test_seg_are_valid_params(
     params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
     ref_are_valid=True):
-    """pytest for code/utils.py:
+    """Pytest for code/utils.py:
     seg_are_valid_params
 
     """
@@ -769,7 +769,9 @@ def test_rv_are_valid_params(
 
 # Cases for test_rv_are_valid_params
 test_rv_are_valid_params(
-    params=(-100.0, -0.1, 300.0, 20.0), ref_are_valid=False)
+    params=(-100.0, -0.1, 300.0, 20.0), ref_are_valid=True)
+test_rv_are_valid_params(
+    params=(-100.0, -1.1, 300.0, 20.0), ref_are_valid=False)
 test_rv_are_valid_params(
     params=(-100.0, 1.1, 300.0, 20.0), ref_are_valid=False)
 test_rv_are_valid_params(
@@ -788,3 +790,19 @@ def test_rv_model_radial_velocities(
         params=params, phases=phases)
     assert np.all(np.isclose(ref_rvels, test_rvels))
     return None
+
+
+def test_rv_log_prior(
+    params=(-100.0, 0.1, 300.0, 20.0), ref_lnp=0.0):
+    r"""Pytest for code/utils.py:
+    rv_log_prior
+
+    """
+    test_lnp = code.utils.rv_log_prior(params=params)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_rv_log_prior
+test_rv_log_prior(
+    params=(-100.0, 1.1, 300.0, 20.0), ref_lnp=-np.inf)

@@ -1843,7 +1843,7 @@ def rv_are_valid_params(params):
     -------
     are_valid : bool
         True if all of the following hold:
-            If 0 <= `phase_offset` <= 1
+            If -1 <= `phase_offset` <= 1
             If 0 < `rvel_sigma`
         False otherwise.
 
@@ -1857,10 +1857,11 @@ def rv_are_valid_params(params):
     * Return `bool` rather than raise exception for optimization with `numba`.
 
     """
+    # Negative phase_offset incase data have phase_offset like 0.00+/-0.01.
     # Allow arbitrary radial velocitity values to model both primary and
     # secondary stars.
     (_, phase_offset, _, rvel_sigma) = params
-    if ((0.0 <= phase_offset) and (phase_offset <= 1.0) and
+    if ((-1.0 <= phase_offset) and (phase_offset <= 1.0) and
         (0.0 < rvel_sigma)):
         are_valid = True
     else:
@@ -1921,7 +1922,7 @@ def rv_model_radial_velocities(params, phases):
 
 
 @numba.jit(nopython=True)
-def rv_log_prior():
+def rv_log_prior(params):
     r"""Log prior of sine model for radial velocities up to a constant.
 
     Parameters
