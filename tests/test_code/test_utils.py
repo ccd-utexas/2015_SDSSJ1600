@@ -276,6 +276,7 @@ def test_calc_residual_fluxes_cases():
     # TODO: Insert additional test cases here.
     return None
 
+
 # Seed random number generator for reproducibility.
 np.random.seed(0)
 def test_calc_z1_z2(
@@ -752,3 +753,21 @@ def test_model_quants_from_velrs_lc_geoms(
         incl_deg=incl_deg)
     assert np.all(np.isclose(ref_quants, test_quants))
     return None
+
+
+
+def test_rv_are_valid_params(
+    params=(-100.0, 0.1, 300.0), ref_are_valid=True):
+    r"""Pytest for code/utils.py:
+    rv_are_valid_params
+
+    """
+    test_are_valid = code.utils.rv_are_valid_params(params=params)
+    assert ref_are_valid == test_are_valid
+    return None
+
+
+# Cases for test_rv_are_valid_params
+test_rv_are_valid_params(
+    params=(-100.0, -0.1, 300.0), ref_are_valid=False)
+

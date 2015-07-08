@@ -1268,8 +1268,8 @@ def seg_are_valid_params(params):
 
     Notes
     -----
-    - See `seg_model_fluxes_rel` for description of parameters.
-    - Return bool rather than raise exception for optimization with numba.
+    * See `seg_model_fluxes_rel` for description of parameters.
+    * Return `bool` rather than raise exception for optimization with `numba`.
 
     """
     # Allow arbitrary flux values for flexibility.
@@ -1824,3 +1824,71 @@ def model_quants_from_velrs_lc_geoms(
     mass_s   /= astropy_con.M_sun.value
     mass_g   /= astropy_con.M_sun.value
     return (axis_s, axis_g, radius_s, radius_g, mass_s, mass_g, flux_rad_ratio)
+
+
+@numba.jit(nopython=True)
+def rv_are_valid_params(params):
+    r"""Check if parameters are valid for sine curve model of radial velocities.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+        `params = (rvel_amp, phase_offset, rvel_offset)`
+        Units are:
+            {rvel_*} = radial velocity in km/s
+            {phase_*} = decimal orbital phase
+
+    Returns
+    -------
+    are_valid : bool
+        True if all of the following hold:
+            If 0 <= `phase_offset` <= 1
+        False otherwise.
+
+    See Also
+    --------
+    rv_model_radial_velocities
+
+    Notes
+    -----
+    * See `rv_model_radial_velocities` for description of paramters.
+    * Return `bool` rather than raise exception for optimization with `numba`.
+
+    """
+    # Allow arbitrary radial velocitity values to model both primary and
+    # secondary stars.
+    (_, phase_offset, _) = params
+    if (0.0 <= phase_offset) and (phase_offset <= 1.0):
+        are_valid = True
+    else:
+        are_valid = False
+    return are_valid
+
+
+@numba.jit(nopython=True)
+def rv_model_radial_velocities():
+    r"""
+    """
+    pass
+
+
+@numba.jit(nopython=True)
+def rv_log_prior():
+    r"""
+    """
+    pass
+
+
+@numba.jit(nopython=True)
+def rv_log_likelihood():
+    r"""
+    """
+    pass
+
+
+@numba.jit(nopython=True)
+def rv_log_posterior():
+    r"""
+    """
+    pass
