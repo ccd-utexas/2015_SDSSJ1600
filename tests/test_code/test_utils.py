@@ -806,3 +806,7 @@ def test_rv_log_prior(
 # Cases for test_rv_log_prior
 test_rv_log_prior(
     params=(-100.0, 1.1, 300.0, 20.0), ref_lnp=-np.inf)
+
+
+def test_rv_log_likelihood():
+    pass
