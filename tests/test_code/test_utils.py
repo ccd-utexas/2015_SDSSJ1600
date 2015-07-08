@@ -276,6 +276,7 @@ def test_calc_residual_fluxes_cases():
     # TODO: Insert additional test cases here.
     return None
 
+
 # Seed random number generator for reproducibility.
 np.random.seed(0)
 def test_calc_z1_z2(
@@ -583,7 +584,7 @@ def test_ls_log_posterior_cases():
 def test_seg_are_valid_params(
     params=(0.018, 0.045, 0.535, 1.016, 0.874, 0.061),
     ref_are_valid=True):
-    """pytest for code/utils.py:
+    """Pytest for code/utils.py:
     seg_are_valid_params
 
     """
@@ -653,7 +654,7 @@ def test_seg_log_posterior(
     phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
     fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
     ref_lnp=7.511771526416612):
-    """pytest for code/utils.py:
+    """Pytest for code/utils.py:
     seg_log_posterior
 
     """
@@ -752,3 +753,102 @@ def test_model_quants_from_velrs_lc_geoms(
         incl_deg=incl_deg)
     assert np.all(np.isclose(ref_quants, test_quants))
     return None
+
+
+
+def test_rv_are_valid_params(
+    params=(-100.0, 0.1, 300.0, 20.0), ref_are_valid=True):
+    r"""Pytest for code/utils.py:
+    rv_are_valid_params
+
+    """
+    test_are_valid = code.utils.rv_are_valid_params(params=params)
+    assert ref_are_valid == test_are_valid
+    return None
+
+
+# Cases for test_rv_are_valid_params
+test_rv_are_valid_params(
+    params=(-100.0, -0.1, 300.0, 20.0), ref_are_valid=True)
+test_rv_are_valid_params(
+    params=(-100.0, -1.1, 300.0, 20.0), ref_are_valid=False)
+test_rv_are_valid_params(
+    params=(-100.0, 1.1, 300.0, 20.0), ref_are_valid=False)
+test_rv_are_valid_params(
+    params=(-100.0, 0.1, 300.0, -20.0), ref_are_valid=False)
+
+
+def test_rv_model_radial_velocities(
+    params=(1.0, 0.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    ref_rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0])):
+    r"""Pytest for code/utils.py:
+    rv_model_radial_velocities
+
+    """
+    test_rvels = code.utils.rv_model_radial_velocities(
+        params=params, phases=phases)
+    assert np.all(np.isclose(ref_rvels, test_rvels))
+    return None
+
+
+def test_rv_log_prior(
+    params=(-100.0, 0.1, 300.0, 20.0), ref_lnp=0.0):
+    r"""Pytest for code/utils.py:
+    rv_log_prior
+
+    """
+    test_lnp = code.utils.rv_log_prior(params=params)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_rv_log_prior
+test_rv_log_prior(
+    params=(-100.0, 1.1, 300.0, 20.0), ref_lnp=-np.inf)
+
+
+def test_rv_log_likelihood(
+    params=(1.0, 0.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-4.594692666023363):
+    r"""Pytest for code/utils.py:
+    test_rv_log_likelihood
+
+    """
+    test_lnp = code.utils.rv_log_likelihood(
+        params=params, phases=phases, rvels=rvels)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_rv_log_likelihood
+test_rv_log_likelihood(
+    params=(1.0, 1.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-np.inf)
+
+
+def test_rv_log_posterior(
+    params=(1.0, 0.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-4.594692666023363):
+    r"""Pytest for code/utils.py:
+    test_rv_log_posterior
+
+    """
+    test_lnp = code.utils.rv_log_posterior(
+        params=params, phases=phases, rvels=rvels)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_rv_log_posterior
+test_rv_log_posterior(
+    params=(1.0, 1.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-np.inf)

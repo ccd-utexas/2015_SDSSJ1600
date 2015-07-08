@@ -1268,8 +1268,8 @@ def seg_are_valid_params(params):
 
     Notes
     -----
-    - See `seg_model_fluxes_rel` for description of parameters.
-    - Return bool rather than raise exception for optimization with numba.
+    * See `seg_model_fluxes_rel` for description of parameters.
+    * Return `bool` rather than raise exception for optimization with `numba`.
 
     """
     # Allow arbitrary flux values for flexibility.
@@ -1312,8 +1312,8 @@ def seg_model_fluxes_rel(params, phases):
             {phase_*} = decimal orbital phase
             {flux_*} = relative flux
     phases : numpy.ndarray
-        1D array of phases. Unit is decimal orbital phase.
-        Unit is decimal orbital phase. 0 <= `phase` <= 0.5.
+        1D array of orbital phases. Units are decimal orbital phase folded at
+        phase=0.5. 0 <= `phase` <= 0.5.
         
     Returns
     -------
@@ -1326,8 +1326,8 @@ def seg_model_fluxes_rel(params, phases):
     
     Notes
     -----
-    - Requires that all input parameters are already checked as valid.
-    - Segmented, symmetric eclipse light curve model:
+    * Requires that all input parameters are already checked as valid.
+    * Segmented, symmetric eclipse light curve model:
         Durations of primary minimum and secondary minimum are equal.
         Durations of primary ingress/egress and secondary ingress/egress
         are equal. Light curve is segmented into functions f(x).
@@ -1418,8 +1418,8 @@ def seg_log_prior(params):
 
     Notes
     -----
-    - See `seg_model_fluxes_rel` for description of parameters.
-    - This is an uninformative prior:
+    * See `seg_model_fluxes_rel` for description of parameters.
+    * This is an uninformative prior:
         `lnp = 0.0` if `theta` is within constraints.
         `lnp = -numpy.inf` otherwise.
     
@@ -1461,7 +1461,7 @@ def seg_log_likelihood(params, phases, fluxes_rel):
     -------
     lnp : float
         Log probability of relative flux values: ln(p(y|x, theta))
-        If parameters outside of acceptable range, `-numpy.inf`.
+        If parameters are outside of acceptable range, `-numpy.inf`.
 
     See Also
     --------
@@ -1469,7 +1469,7 @@ def seg_log_likelihood(params, phases, fluxes_rel):
     
     Notes
     -----
-    - See `seg_model_fluxes_rel` for description of parameters.
+    * See `seg_model_fluxes_rel` for description of parameters.
 
     References
     ----------
@@ -1489,7 +1489,7 @@ def seg_log_likelihood(params, phases, fluxes_rel):
         lnp = 0.0
         while idx < len(fluxes_rel):
             res = fluxes_rel[idx] - modeled_fluxes_rel[idx]
-            res_term = (res / sig)**2.0
+            res_term = (res/sig)**2.0
             lnp += -0.5*(log_term + res_term)
             idx += 1
     else:
@@ -1516,7 +1516,7 @@ def seg_log_posterior(params, phases, fluxes_rel):
     -------
     lnp : float
         Log probability of parameters: ln(p(theta|x, y))
-        If parameters outside of acceptable range, `-numpy.inf`.
+        If parameters are outside of acceptable range, `-numpy.inf`.
 
     See Also
     --------
@@ -1525,7 +1525,7 @@ def seg_log_posterior(params, phases, fluxes_rel):
 
     Notes
     -----
-    - See `seg_model_fluxes_rel` for description of parameters.
+    * See `seg_model_fluxes_rel` for description of parameters.
 
     References
     ----------
@@ -1824,3 +1824,239 @@ def model_quants_from_velrs_lc_geoms(
     mass_s   /= astropy_con.M_sun.value
     mass_g   /= astropy_con.M_sun.value
     return (axis_s, axis_g, radius_s, radius_g, mass_s, mass_g, flux_rad_ratio)
+
+
+@numba.jit(nopython=True)
+def rv_are_valid_params(params):
+    r"""Check if parameters are valid for sine curve model of radial velocities.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+        `params = (rvel_amp, phase_offset, rvel_offset, rvel_sigma)`
+        Units are:
+            {rvel_*} = radial velocity in km/s
+            {phase_*} = decimal orbital phase
+
+    Returns
+    -------
+    are_valid : bool
+        True if all of the following hold:
+            If -1 <= `phase_offset` <= 1
+            If 0 < `rvel_sigma`
+        False otherwise.
+
+    See Also
+    --------
+    rv_model_radial_velocities
+
+    Notes
+    -----
+    * See `rv_model_radial_velocities` for description of paramters.
+    * Return `bool` rather than raise exception for optimization with `numba`.
+
+    """
+    # Negative phase_offset incase data have phase_offset like 0.00+/-0.01.
+    # Allow arbitrary radial velocitity values to model both primary and
+    # secondary stars.
+    (_, phase_offset, _, rvel_sigma) = params
+    if ((-1.0 <= phase_offset) and (phase_offset <= 1.0) and
+        (0.0 < rvel_sigma)):
+        are_valid = True
+    else:
+        are_valid = False
+    return are_valid
+
+
+@numba.jit(nopython=True)
+def rv_model_radial_velocities(params, phases):
+    r"""Calculate the radial velocities for a sine model of the radial velocity
+    curve.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats representing the model parameters.
+        `params = (rvel_amp, phase_offset, rvel_offset, rvel_sigma)`
+            rvel_amp: Radial velocity amplitude of the sine model.
+            phase_offset: Orbital phase offset of the sine model.
+            rvel_offset: Radia velocity offset of the sine model.
+            rvel_sigma: Standard deviation of the radial velocities. Assumes
+                that all radial velocities are drawn from the same distribution.
+        Units are:
+            {rvel_*} = radial velocity in km/s
+            {phase_*} = decimal orbital phase
+    phases : numpy.ndarray
+        1D array of orbital phases. Units are decimal orbital phase.
+        0 <= `phase` <= 1.0.
+
+    Returns
+    -------
+    rvels : numpy.ndarray
+        1D array of modeled radial velocities. Units are km/s.
+
+    See Also
+    --------
+    rv_are_valid_params
+
+    Notes
+    -----
+    * Requires that all input parameters are already checked as valid.
+    * Sine model of radial velocities:
+        rvel = rvel_amp * sin(2*pi(phase + phase_offset)) + rvel_offset
+
+    """
+    (rvel_amp, phase_offset, rvel_offset, _) = params
+    num_phases = len(phases)
+    rvels = np.empty(num_phases)
+    idx = 0
+    while idx < num_phases:
+        phase = phases[idx]
+        rvel = (
+            (rvel_amp * np.sin(2.0*np.pi * (phase + phase_offset))) + 
+            rvel_offset)
+        rvels[idx] = rvel
+        idx += 1
+    return rvels
+
+
+@numba.jit(nopython=True)
+def rv_log_prior(params):
+    r"""Log prior of sine model for radial velocities up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta))
+        If parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    rv_are_valid_params, rv_model_radial_velocities
+
+    Notes
+    -----
+    * See `rv_model_radial_velocities` for description of parameters.
+    * This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within constraints.
+        `lnp = -numpy.inf` otherwise.
+
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+
+    """
+    if rv_are_valid_params(params=params):
+        lnp = 0.0
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+@numba.jit(nopython=True)
+def rv_log_likelihood(params, phases, rvels):
+    r"""Log likelihood of sine model's radial velocities given phases and model
+    parameters. Log likelihood is calculated up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters, the last of which is the
+        standard deviation of all measuremetns of radial velocity
+        `params = (..., rvel_sigma)`. Unit is km/s. This assumes that all
+        measurements are drawn from the same distribution.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+    rvels : numpy.ndarray
+        1D array of observed radial velocities. Unit is km/s.
+        Required: `len(rvels) = len(phases)`
+
+    Returns
+    -------
+    lnp : float
+        Log probability of radial velocity values: ln(p(y|x, theta))
+        If parameters are outside of acceptable range, `-numpy.inf`.
+
+    Notes
+    -----
+    * See `rv_model_radial_velocities` for description of parameters.
+
+    References
+    ----------
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
+    
+    """
+    if rv_are_valid_params(params=params):
+        # numba does not support negative indexing `params[-1]`
+        sig = params[len(params)-1]
+        modeled_rvels = rv_model_radial_velocities(params=params, phases=phases)
+        # Calculation for `lnp` adapted from [1]_.
+        # All data are presumed to have the same sigma.
+        log_term = np.log(2.0*np.pi*sig**2.0)
+        idx = 0
+        lnp = 0.0
+        while idx < len(modeled_rvels):
+            res = rvels[idx] - modeled_rvels[idx]
+            res_term = (res/sig)**2.0
+            lnp += -0.5*(log_term + res_term)
+            idx += 1
+    else:
+        lnp = -np.inf
+    return lnp
+
+
+@numba.jit(nopython=True)
+def rv_log_posterior(params, phases, rvels):
+    r"""Log probability of sine model's parameters givne the data. Log
+    probability is calculated up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+    phases : numpy.ndarray
+        1D array of phases. Unit is decimal orbital phase.
+    rvels : numpy.ndarray
+        1D array of observed radial velocities. Unit is km/s.
+        Required: `len(rvels) == len(phases)`
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta|x, y))
+        If parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    rv_are_valid_params, rv_model_radial_velocities,
+    rv_log_prior, rv_log_likelihood
+
+    Notes
+    -----
+    * See `rv_model_radial_velocities` for description of parameters.
+
+    References
+    ----------
+    .. [1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    .. [2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    .. [3] http://dan.iel.fm/emcee/current/user/line/
+
+    """
+    if rv_are_valid_params(params=params):
+        # Calculation of `lnp` adapted from [1]_.
+        lnpr = rv_log_prior(params=params)
+        lnlike = rv_log_likelihood(params=params, phases=phases, rvels=rvels)
+        lnp = lnpr + lnlike
+    else:
+        lnp = -np.inf
+    return lnp
