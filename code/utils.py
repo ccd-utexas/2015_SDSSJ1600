@@ -1418,8 +1418,8 @@ def seg_log_prior(params):
 
     Notes
     -----
-    - See `seg_model_fluxes_rel` for description of parameters.
-    - This is an uninformative prior:
+    * See `seg_model_fluxes_rel` for description of parameters.
+    * This is an uninformative prior:
         `lnp = 0.0` if `theta` is within constraints.
         `lnp = -numpy.inf` otherwise.
     
@@ -1922,9 +1922,42 @@ def rv_model_radial_velocities(params, phases):
 
 @numba.jit(nopython=True)
 def rv_log_prior():
-    r"""
+    r"""Log prior of sine model for radial velocities up to a constant.
+
+    Parameters
+    ----------
+    params : tuple
+        Tuple of floats as the model parameters.
+
+    Returns
+    -------
+    lnp : float
+        Log probability of parameters: ln(p(theta))
+        If parameters are outside of acceptable range, `-numpy.inf`.
+
+    See Also
+    --------
+    rv_are_valid_params, rv_model_radial_velocities
+
+    Notes
+    -----
+    * See `rv_model_radial_velocities` for description of parameters.
+    * This is an uninformative prior:
+        `lnp = 0.0` if `theta` is within constraints.
+        `lnp = -numpy.inf` otherwise.
+
+    References
+    ----------
+    ..[1] Vanderplas, 2014. http://arxiv.org/pdf/1411.5018v1.pdf
+    ..[2] Hogg, et al, 2010. http://arxiv.org/pdf/1008.4686v1.pdf
+    ..[3] http://dan.iel.fm/emcee/current/user/line/
+
     """
-    pass
+    if rv_are_valid_params(params=params):
+        lnp = 0.0
+    else:
+        lnp = -np.inf
+    return lnp
 
 
 @numba.jit(nopython=True)
