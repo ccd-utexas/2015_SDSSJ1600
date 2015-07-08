@@ -1489,7 +1489,7 @@ def seg_log_likelihood(params, phases, fluxes_rel):
         lnp = 0.0
         while idx < len(fluxes_rel):
             res = fluxes_rel[idx] - modeled_fluxes_rel[idx]
-            res_term = (res / sig)**2.0
+            res_term = (res/sig)**2.0
             lnp += -0.5*(log_term + res_term)
             idx += 1
     else:
@@ -1987,7 +1987,7 @@ def rv_log_likelihood(params, phases, rvels):
 
     Notes
     -----
-    * See `rv_model_fluxes_rel` for description of parameters.
+    * See `rv_model_radial_velocities` for description of parameters.
 
     References
     ----------
@@ -1996,7 +1996,23 @@ def rv_log_likelihood(params, phases, rvels):
     .. [3] http://dan.iel.fm/emcee/current/user/line/
     
     """
-    pass
+    if rv_are_valid_params(params=params):
+        # numba does not support negative indexing `params[-1]`
+        sig = params[len(params)-1]
+        modeled_rvels = rv_model_radial_velocities(params=params, phases=phases)
+        # Calculation for `lnp` adapted from [1]_.
+        # All data are presumed to have the same sigma.
+        log_term = np.log(2.0*np.pi*sig**2.0)
+        idx = 0
+        lnp = 0.0
+        while idx < len(modeled_rvels):
+            res = rvels[idx] - modeled_rvels[idx]
+            res_term = (res/sig)**2.0
+            lnp += -0.5*(log_term + res_term)
+            idx += 1
+    else:
+        lnp = -np.inf
+    return lnp
 
 
 @numba.jit(nopython=True)

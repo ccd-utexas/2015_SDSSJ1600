@@ -654,7 +654,7 @@ def test_seg_log_posterior(
     phases=np.asarray([0.0, 0.25, 0.5, 1.0]),
     fluxes_rel=np.asarray([0.535, 1.016, 0.874, 0.874]),
     ref_lnp=7.511771526416612):
-    """pytest for code/utils.py:
+    """Pytest for code/utils.py:
     seg_log_posterior
 
     """
@@ -781,7 +781,7 @@ test_rv_are_valid_params(
 def test_rv_model_radial_velocities(
     params=(1.0, 0.25, 1.0, 1.0),
     phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
-    ref_rvels=[2.0, 1.0, 0.0, 1.0, 2.0]):
+    ref_rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0])):
     r"""Pytest for code/utils.py:
     rv_model_radial_velocities
 
@@ -808,5 +808,47 @@ test_rv_log_prior(
     params=(-100.0, 1.1, 300.0, 20.0), ref_lnp=-np.inf)
 
 
-def test_rv_log_likelihood():
-    pass
+def test_rv_log_likelihood(
+    params=(1.0, 0.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-4.594692666023363):
+    r"""Pytest for code/utils.py:
+    test_rv_log_likelihood
+
+    """
+    test_lnp = code.utils.rv_log_likelihood(
+        params=params, phases=phases, rvels=rvels)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_rv_log_likelihood
+test_rv_log_likelihood(
+    params=(1.0, 1.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-np.inf)
+
+
+def test_rv_log_posterior(
+    params=(1.0, 0.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-4.594692666023363):
+    r"""Pytest for code/utils.py:
+    test_rv_log_posterior
+
+    """
+    test_lnp = code.utils.rv_log_posterior(
+        params=params, phases=phases, rvels=rvels)
+    assert np.isclose(ref_lnp, test_lnp)
+    return None
+
+
+# Cases for test_rv_log_posterior
+test_rv_log_posterior(
+    params=(1.0, 1.25, 1.0, 1.0),
+    phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
+    ref_lnp=-np.inf)
