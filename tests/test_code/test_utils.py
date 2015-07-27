@@ -852,3 +852,17 @@ test_rv_log_posterior(
     phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
     rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
     ref_lnp=-np.inf)
+
+
+def test_calc_corr_sig_level(
+    y1=np.repeat([0., 1., 1., 0., 1., 0., 0., 1.], 128),
+    y2=np.ones(128), sig=0.99, min_ncorrs=0.99,
+    ref_sig_level=0.578125):
+    """Pytest for code/utils.py:
+    calc_corr_sig_level
+    
+    """
+    np.random.seed(0) # for reproducibility
+    test_sig_level = code.utils.calc_corr_sig_level(y1=y1, y2=y2, sig=0.99)
+    assert np.isclose(ref_sig_level, test_sig_level)
+    return None

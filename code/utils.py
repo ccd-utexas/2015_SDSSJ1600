@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import numba
 import numpy as np
 import scipy.constants as scipy_con
+import scipy.signal as scipy_sig
 import seaborn as sns
 
 
@@ -2060,3 +2061,73 @@ def rv_log_posterior(params, phases, rvels):
     else:
         lnp = -np.inf
     return lnp
+
+
+def calc_corr_sig_level(y1, y2, sig=0.99, min_ncorrs=1e3):
+    """Calculate the threshold above which cross-correlations
+    are at or above the given signifcance level.
+    
+    Parameters
+    ----------
+    y1 : array_like
+        1D array of y-coordinates (observed signals) for first data set.
+    y2 : array_like
+        Same as `y1` but for second data set.
+        The number of points in `y2` must be less than or equal to that of `y1`.
+    sig : {0.99}, float, optional
+        Significance level to compute. Required: 0 < `sig` < 1.
+    min_ncorrs : {1e3}, float, optional
+        Minimum number of correlation values to compute in order to calculate
+        the significance level.
+    
+    Returns
+    -------
+    sig_level : float
+        Correlation value that corresponds to significance level `sig`.
+        
+    Raises
+    ------
+    ValueError :
+        Raised if `y1` has fewer elements than `y2`.
+        Raised if not 0 < `sig` < 1.
+    
+    See Also
+    --------
+    align_time_series
+    
+    Notes
+    -----
+    * `y1` and `y2` may need to be de-trended before applying this function.
+    * `y1` and `y2` are shuffled to infer the noise inherent to the data.
+    * A significance level of 0.99 means that 0.01 percent of the data has
+        correlation values greater than this threshold. As a perumtation test,
+        a significance level of 0.99 is equivalent to a p-value of 0.01.
+    
+    References
+    ----------
+    ..[1] http://docs.scipy.org/doc/scipy/reference/generated/
+          scipy.signal.correlate.html#scipy.signal.correlate
+    ..[2] http://en.wikipedia.org/wiki/Statistical_significance
+    ..[3] https://groups.google.com/forum/#!topic/astroml-general/f_agMaoedQ8
+    
+    """
+    # Check input.
+    # Make copies of the arrays to prevent modifying the arrays passed by reference.
+    (y1, y2) = (np.asarray(y1).copy(), np.asarray(y2).copy())
+    if not len(y1) >= len(y2):
+        raise ValueError("`y1` must have as many or more elements than `y2`.")
+    if not ((0 < sig) and (sig < 1)):
+        raise ValueError("Required: 0 < `sig` < 1")
+    # Compute the `sig` percentile from at least `min_ncorrs` correlation values of the shuffled data.
+    # Every correlation has the length of `y1`.
+    # The total number of all correlation values = maxiter*len(y1) >= min_ncorrs
+    maxiter = int(min_ncorrs / len(y1)) + 1
+    corr = np.asarray([])
+    np.random.seed(0) # for reproducibility
+    for _ in range(maxiter):
+        # Shuffle in place.
+        np.random.shuffle(y1)
+        np.random.shuffle(y2)
+        corr = np.append(corr, scipy_sig.correlate(y1, y2, mode='same')/len(y2))
+    sig_level = np.percentile(a=corr, q=sig*100)
+    return sig_level
