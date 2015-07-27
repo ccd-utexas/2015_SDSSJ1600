@@ -852,3 +852,42 @@ test_rv_log_posterior(
     phases=np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
     rvels=np.asarray([2.0, 1.0, 0.0, 1.0, 2.0]),
     ref_lnp=-np.inf)
+
+
+def test_calc_corr_sig_level(
+    y1=np.repeat([0., 1., 1., 0., 1., 0., 0., 1.], 128),
+    y2=np.ones(128), sig=0.99, min_ncorrs=0.99,
+    ref_sig_level=0.578125):
+    """Pytest for code/utils.py:
+    calc_corr_sig_level
+    
+    """
+    np.random.seed(0) # for reproducibility
+    test_sig_level = code.utils.calc_corr_sig_level(y1=y1, y2=y2, sig=0.99)
+    assert np.isclose(ref_sig_level, test_sig_level)
+    return None
+
+
+def test_align_data_sets(
+    x1=[-3,-2,-1,0,1,2,3], y1=[0,0,0,0,0,1,0], x2=[-1,0,1], y2=[0,1,0],
+    resample_factor=2, show_plots=False, sig=0.99, min_ncorrs=1e3,
+    ref_x1_aligned=[-1,-0.5,0,0.5,1], ref_y1_aligned=[0,0.5,1,0.5,0],
+    ref_x1_offset=-2,
+    ref_x2_aligned=[-1,-0.5,0,0.5,1], ref_y2_aligned=[0,0.5,1,0.5,0],
+    ref_x2_offset=0):
+    """Pytest for code/utils.py:
+    align_data_sets.
+    
+    """
+    (test_x1_aligned, test_y1_aligned, test_x1_offset,
+     test_x2_aligned, test_y2_aligned, test_x2_offset) = \
+        code.utils.align_data_sets(
+            x1=x1, y1=y1, x2=x2, y2=y2, resample_factor=resample_factor,
+            show_plots=show_plots, sig=sig, min_ncorrs=min_ncorrs)
+    assert np.all(np.isclose(ref_x1_aligned, test_x1_aligned))
+    assert np.all(np.isclose(ref_y1_aligned, test_y1_aligned))
+    assert np.isclose(ref_x1_offset, test_x1_offset)
+    assert np.all(np.isclose(ref_x2_aligned, test_x2_aligned))
+    assert np.all(np.isclose(ref_y2_aligned, test_y2_aligned))
+    assert np.isclose(ref_x2_offset, test_x2_offset)
+    return None

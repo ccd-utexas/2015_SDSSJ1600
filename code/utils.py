@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import numba
 import numpy as np
 import scipy.constants as scipy_con
+import scipy.signal as scipy_sig
 import seaborn as sns
 
 
@@ -2060,3 +2061,237 @@ def rv_log_posterior(params, phases, rvels):
     else:
         lnp = -np.inf
     return lnp
+
+
+def calc_corr_sig_level(y1, y2, sig=0.99, min_ncorrs=1e3):
+    """Calculate the threshold above which cross-correlations
+    are at or above the given signifcance level.
+    
+    Parameters
+    ----------
+    y1 : array_like
+        1D array of y-coordinates (observed signals) for first data set.
+    y2 : array_like
+        Same as `y1` but for second data set.
+        The number of points in `y2` must be less than or equal to that of `y1`.
+    sig : {0.99}, float, optional
+        Significance level to compute. Required: 0 < `sig` < 1.
+    min_ncorrs : {1e3}, float, optional
+        Minimum number of correlation values to compute in order to calculate
+        the significance level.
+    
+    Returns
+    -------
+    sig_level : float
+        Correlation value that corresponds to significance level `sig`.
+        
+    Raises
+    ------
+    ValueError :
+        Raised if `y1` has fewer elements than `y2`.
+        Raised if not 0 < `sig` < 1.
+    
+    See Also
+    --------
+    align_time_series
+    
+    Notes
+    -----
+    * `y1` and `y2` may need to be de-trended before applying this function.
+    * `y1` and `y2` are shuffled to infer the noise inherent to the data.
+    * A significance level of 0.99 means that 0.01 percent of the data has
+        correlation values greater than this threshold. As a perumtation test,
+        a significance level of 0.99 is equivalent to a p-value of 0.01.
+    
+    References
+    ----------
+    .. [1] http://docs.scipy.org/doc/scipy/reference/generated/
+          scipy.signal.correlate.html#scipy.signal.correlate
+    .. [2] http://en.wikipedia.org/wiki/Statistical_significance
+    .. [3] https://groups.google.com/forum/#!topic/astroml-general/f_agMaoedQ8
+    
+    """
+    # Check input.
+    # Make copies of the arrays to prevent modifying the arrays passed by reference.
+    (y1, y2) = (np.asarray(y1).copy(), np.asarray(y2).copy())
+    if not len(y1) >= len(y2):
+        raise ValueError("`y1` must have as many or more elements than `y2`.")
+    if not ((0 < sig) and (sig < 1)):
+        raise ValueError("Required: 0 < `sig` < 1")
+    # Compute the `sig` percentile from at least `min_ncorrs` correlation values of the shuffled data.
+    # Every correlation has the length of `y1`.
+    # The total number of all correlation values = maxiter*len(y1) >= min_ncorrs
+    maxiter = int(min_ncorrs / len(y1)) + 1
+    corr = np.asarray([])
+    np.random.seed(0) # for reproducibility
+    for _ in range(maxiter):
+        # Shuffle in place.
+        np.random.shuffle(y1)
+        np.random.shuffle(y2)
+        corr = np.append(corr, scipy_sig.correlate(y1, y2, mode='same')/len(y2))
+    sig_level = np.percentile(a=corr, q=sig*100)
+    return sig_level
+
+
+def align_data_sets(
+    x1, y1, x2, y2, resample_factor=1.0,
+    show_plots=False, sig=0.99, min_ncorrs=1e3):
+    """Align two data sets by x-coordinates. x-coordinates are resampled,
+    cross-correlated, and shifted.
+    
+    Parameters
+    ----------
+    x1 : array_like
+        1D array of x-coordinates of data points for first data set.
+        `x1` must have the same dimensions as `y1`.
+    y1 : array_like
+        1D array of y-coordinates of data points for first data set.
+        `x1` must have the same dimensions as `y1`.
+    x2 : array_like
+    y2 : array_like
+        Same as `x1`, `y1` but for second data set.
+        Required: max(x1) - min(x1) >= max(x2) - min(x2)
+    resample_factor : {1.0}, float, optional
+        Additional factor by which to resample the data.
+        Examples:
+        * resample_factor = 2.0
+            If `x1 = x2 = [0, 1, 2]`, then `x_resampled = [0, 0.5, 1, 1.5, 2]`
+        * resample_factor = 0.5
+            If `x1 = x2 = [0, 1, 2]`, then `x_resampled = [0, 2]`
+    show_plots : {True, False}, bool, optional
+        `False` (default): Do not show plots.
+        `True`: Show diagnostic plots of alignment and cross-correlation.
+    sig : {0.99}, float, optional
+        Significance level to compute. Required: 0 < `sig` < 1.
+    min_ncorrs : {1e3}, float, optional
+        Minimum number of correlation values to compute in order to calculate
+        the significance level.
+    
+    Returns
+    -------
+    x1_aligned : numpy.ndarray
+        1D array of aligned x-coordinates of data points for first data set.
+    y1_aligned : numpy.ndarray
+        1D array of aligned y-coordinates of data points for first data set.
+    x1_offset : float
+        Value that was added to `x1_resampled` in order to align `x1`.
+        `x1_aligned = x1_resampled + x1_offset`
+    x2_aligned : numpy.ndarray
+    y2_aligned : numpy.ndarray
+    x2_offset : float
+        Same as `x1_aligned`, `y1_aligned`, `x1_offset` but for second data set.
+    
+    Raises
+    ------
+    ValueError :
+        Raised if `x` and `y` do not have the same shape for a given data set.
+        Raised if max(x1) - min(x1) < max(x2) - min(x2).
+        Raised if not 0 < `sig` < 1.
+    
+    See Also
+    --------
+    calc_corr_sig_level
+    
+    Notes
+    -----
+    * Correlating the data set implements a matched filter.
+    * Correlating by data set performs better than by wavelet spectra variance due to noise.
+    * Time values are resampled to highest time resolution of either `x1` or `x2`.
+    * Centering the data set is necessary to establish a common time reference.
+    
+    References
+    ----------
+    .. [1] http://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.correlate.html
+    
+    """
+    # Check input.
+    # Make copies of the arrays to prevent modifying the arrays passed by reference.
+    (x1, y1) = (np.asarray(x1).copy(), np.asarray(y1).copy())
+    (x2, y2) = (np.asarray(x2).copy(), np.asarray(y2).copy())
+    if not ((np.shape(x1) == np.shape(y1)) and
+            (np.shape(x2) == np.shape(y2))):
+        raise ValueError("For each data set, `x` and `y` must have the same dimensions.")
+    if not (max(x1) - min(x1)) >= (max(x2) - min(x2)):
+        raise ValueError("`x1` must span as much or more time than `x2`.")
+    if show_plots:
+        plt.title("Input data sets")
+        plt.xlabel("x values")
+        plt.ylabel("y values")
+        plt.plot(x1, y1, marker='.', label='data set 1')
+        plt.plot(x2, y2, marker='.', label='data set 2')
+        plt.legend()
+        plt.show()
+    # Keep track of the applied offsets to the data set.
+    (x1_offset, x2_offset) = (0.0, 0.0)
+    # Resample data at (1/resample_factor)*highest common x-coordinate resolution
+    # and center at x=0. Resampling is necessary to ensure that advancing the index
+    # is equivalent to advancing in x by the same amount for both data set.
+    # Centering is necessary to convert the data set to a common x-coordinate reference.
+    x_resolution = (1.0/resample_factor)*min(np.median(np.diff(x1)), np.median(np.diff(x2)))
+    x1_resampled = np.linspace(start=x1[0], stop=x1[-1],
+        num=int((x1[-1] - x1[0])/x_resolution)+1, endpoint=True)
+    y1_resampled = np.interp(x=x1_resampled, xp=x1, fp=y1)
+    (x1, y1) = (x1_resampled, y1_resampled)
+    x2_resampled = np.linspace(start=x2[0], stop=x2[-1],
+        num=int((x2[-1] - x2[0])/x_resolution)+1, endpoint=True)
+    y2_resampled = np.interp(x=x2_resampled, xp=x2, fp=y2)
+    (x2, y2) = (x2_resampled, y2_resampled)
+    (x1_mean, x2_mean) = (np.mean(x1), np.mean(x2))
+    (x1_offset, x2_offset) = (x1_offset - x1_mean, x2_offset - x2_mean)
+    (x1, x2) = (x1 - x1_mean, x2 - x2_mean)
+    if show_plots:
+        plt.title("Resampled and centered data sets")
+        plt.xlabel("x values")
+        plt.ylabel("y values")
+        plt.plot(x1, y1, marker='.', label='data set 1')
+        plt.plot(x2, y2, marker='.', label='data set 2')
+        plt.legend()
+        plt.show()
+    # Correlate the data sets and compute the offset.
+    corr = scipy_sig.correlate(y1, y2, mode='same')/len(y2)
+    sig_level = calc_corr_sig_level(y1=y1, y2=y2, sig=sig, min_ncorrs=min_ncorrs)
+    if np.all(corr < sig_level):
+        warnings.warn(("\n" +
+             "All cross-correlation values are less than significance level:\n" +
+             "significance: {sig}\n" +
+             "level: {sig_level}").format(sig=sig, sig_level=sig_level))
+    corr_offset = x1[np.argmax(corr)]
+    if show_plots:
+        plt.title(("Cross-correlation of data sets\n" +
+                   "significance level: {sig:%}").format(sig=sig))
+        plt.xlabel("x values")
+        plt.ylabel("Cross-correlation")
+        plt.plot(x1, corr, marker='.', color='black')
+        plt.axhline(sig_level, linestyle='--', color='red')
+        plt.show()
+    # Offset x2 to align with x1.
+    x2_offset = x2_offset + corr_offset
+    x2 = x2 + corr_offset
+    if show_plots:
+        plt.title("Aligned data sets")
+        plt.xlabel("x values")
+        plt.ylabel("y values")
+        plt.plot(x1, y1, marker='.', label='data set 1')
+        plt.plot(x2, y2, marker='.', label='data set 2')
+        plt.legend()
+        plt.show()
+    # Trim data sets to only include overlap.
+    # Center trimmed data set about x=0.
+    (x_min, x_max) = (max(x1[0], x2[0]), min(x1[-1], x2[-1]))
+    x1_tfmask = (x_min <= x1) & (x1 <= x_max)
+    x2_tfmask = (x_min <= x2) & (x2 <= x_max)
+    (x1, y1)  = (x1[x1_tfmask], y1[x1_tfmask])
+    (x2, y2)  = (x2[x2_tfmask], y2[x2_tfmask])
+    x_mean = np.mean(np.append(x1, x2))
+    (x1_offset, x2_offset) = (x1_offset - x_mean, x2_offset - x_mean)
+    (x1, x2) = (x1 - x_mean, x2 - x_mean)
+    if show_plots:
+        plt.title("Centered and trimmed data sets")
+        plt.xlabel("x values")
+        plt.ylabel("y values")
+        plt.plot(x1, y1, marker='.', label='data set 1')
+        plt.plot(x2, y2, marker='.', label='data set 2')
+        plt.legend()
+        plt.show()
+    return (x1, y1, x1_offset, x2, y2, x2_offset)
+
