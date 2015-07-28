@@ -892,3 +892,22 @@ def test_align_data_sets(
     assert np.isclose(ref_x2_offset, test_x2_offset)
     return None
 
+
+def test_calc_velr(
+    dwave=0.072, wave=656.281, incl=np.deg2rad(90.0),
+    ref_velr=32889.961732855285):
+    r"""Pytest for code/utils.py:
+    calc_velr
+
+    Notes
+    -----
+    * Test from section 7.3.1 of [1]_
+
+    References
+    ----------
+    .. [1] Carroll and Ostlie, An Introduction to Modern Astrophysics, 2007
+
+    """
+    test_velr = code.utils.calc_velr(dwave=dwave, wave=wave, incl=incl)
+    assert np.isclose(ref_velr, test_velr)
+    return None

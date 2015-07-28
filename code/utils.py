@@ -2325,6 +2325,7 @@ def calc_velr(dwave, wave, incl=np.deg2rad(90.0)):
     References
     ----------
     .. [1] Carroll and Ostlie, An Introduction to Modern Astrophysics, 2007
+    
     """
     velr = np.sin(incl)*(dwave/wave)*scipy_con.c
     return velr
