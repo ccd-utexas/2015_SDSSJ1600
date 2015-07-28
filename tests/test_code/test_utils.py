@@ -891,3 +891,4 @@ def test_align_data_sets(
     assert np.all(np.isclose(ref_y2_aligned, test_y2_aligned))
     assert np.isclose(ref_x2_offset, test_x2_offset)
     return None
+

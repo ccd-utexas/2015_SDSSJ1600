@@ -2295,3 +2295,36 @@ def align_data_sets(
         plt.show()
     return (x1, y1, x1_offset, x2, y2, x2_offset)
 
+
+@numba.jit(nopython=True)
+def calc_velr(dwave, wave, incl=np.deg2rad(90.0)):
+    r"""Calculate radial velocity from observed Doppler shift.
+
+    Parameters
+    ----------
+    dwave : float
+        Doppler shift of wavelength. Unit is length, e.g. nm, A.
+    wave : float
+        Wavelength of observation. Unit is same as `dwave`.
+    incl : {np.deg2rad(90.0)}, float, optional
+        Orbital inclination of binary system. Unit is radians.
+        Default assumes orbital inclination of 90 deg.
+
+    Returns
+    -------
+    velr : float
+        Radial velocity. Unit is meters per second.
+
+    Notes
+    -----
+    * TODO: Move to `binstarsolver` package.
+    * Adapted from example 7.3.1 of [1]_.
+        velr = sin(incl)*(dwave/wave)*c
+        where c is speed of light
+
+    References
+    ----------
+    .. [1] Carroll and Ostlie, An Introduction to Modern Astrophysics, 2007
+    """
+    velr = np.sin(incl)*(dwave/wave)*scipy_con.c
+    return velr
