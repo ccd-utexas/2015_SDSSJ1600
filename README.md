@@ -1,5 +1,5 @@
-# Harrold_2015_SDSSJ1600
-Code to reproduce Harrold et al 2015 on SDSS J160036.83+272117.8
+# 2015_SDSSJ1600
+Code to work on SDSS J160036.83+272117.8
 
 ## Examples
 See directory 'ipython_notebooks'.
